@@ -130,13 +130,18 @@ body{overflow-x:clip}
 .wealth-unit-option:focus-visible{outline:3px solid #92c4b5;outline-offset:2px}
 .wealth-totals-heading{gap:12px}
 @media(max-width:580px){.wealth-totals-heading{align-items:flex-start}.wealth-total-switch{width:100%;justify-content:stretch}.wealth-unit-option{flex:1;padding:10px 9px}}
+
+/* Shared wealth summary currency control; independent from transactional filters */
+.wealth-header-switch{margin-left:auto}
+@media(max-width:740px){.wealth-header-switch{margin-left:0;max-width:none;flex:0 0 auto}.topright:has(.wealth-header-switch:not(.hidden)){justify-content:space-between;flex-wrap:wrap}}
+@media(max-width:390px){.wealth-header-switch .wealth-unit-option{padding:8px 10px;font-size:11px}}
 </style>
 </head>
 <body>
 <div class="app">
-<aside class="side"><div class="brand"><div class="logo">澄</div><div><strong>澄理</strong><small>WEALTH MANAGEMENT</small></div></div><nav class="nav" id="sidenav"></nav><div class="side-foot">PRIVATE FINANCE WORKSPACE<br><b id="sideStatus">● 本地账本</b><br>SGD · CNY 双币种支持<br><span style="opacity:.65">Version 2.0.3</span></div></aside>
+<aside class="side"><div class="brand"><div class="logo">澄</div><div><strong>澄理</strong><small>WEALTH MANAGEMENT</small></div></div><nav class="nav" id="sidenav"></nav><div class="side-foot">PRIVATE FINANCE WORKSPACE<br><b id="sideStatus">● 本地账本</b><br>SGD · CNY 双币种支持<br><span style="opacity:.65">Version 2.0.4</span></div></aside>
 <main>
-<div class="top"><div><div class="eyebrow" id="eyebrow">PERSONAL FINANCE</div><h1 id="pageTitle">财富总览</h1><div class="muted" id="pageSubtitle">掌握净资产、资产配置与现金流的整体状况。</div></div><div class="topright"><div class="currency-switch" role="group" aria-label="显示币种"><button type="button" class="currency-option active" data-currency="SGD" aria-pressed="true" onclick="setCurrency('SGD')">S$ <span>SGD</span></button><button type="button" class="currency-option" data-currency="CNY" aria-pressed="false" onclick="setCurrency('CNY')">¥ <span>CNY</span></button></div><button class="btn primary new-entry-btn" id="primaryQuickAction" onclick="quickAction()">＋ 记一笔</button></div></div>
+<div class="top"><div><div class="eyebrow" id="eyebrow">PERSONAL FINANCE</div><h1 id="pageTitle">财富总览</h1><div class="muted" id="pageSubtitle">掌握净资产、资产配置与现金流的整体状况。</div></div><div class="topright"><div class="wealth-header-switch wealth-total-switch hidden" role="group" aria-label="财富总览汇总显示币种"><button type="button" class="wealth-unit-option active" data-wealth-unit="SGD" aria-pressed="true" onclick="setWealthUnit('SGD')">S$ SGD</button><button type="button" class="wealth-unit-option" data-wealth-unit="CNY" aria-pressed="false" onclick="setWealthUnit('CNY')">¥ CNY</button></div><div class="currency-switch" role="group" aria-label="显示币种"><button type="button" class="currency-option active" data-currency="SGD" aria-pressed="true" onclick="setCurrency('SGD')">S$ <span>SGD</span></button><button type="button" class="currency-option" data-currency="CNY" aria-pressed="false" onclick="setCurrency('CNY')">¥ <span>CNY</span></button></div><button class="btn primary new-entry-btn" id="primaryQuickAction" onclick="quickAction()">＋ 记一笔</button></div></div>
 <section class="section" id="wealth">
 <div class="row"><div><div class="section-title">资产负债总账</div><div class="section-sub">手动记录余额快照。不会根据不完整消费流水推算银行余额。</div></div></div>
 <div class="card" style="margin-top:16px"><div class="row"><div><div class="section-title">折算汇率设置</div><div class="section-sub">汇率由你填写，不自动使用未经核实的行情；仅用于展示估算净资产。</div></div><button class="btn small" onclick="openFx()">设置汇率</button></div><div id="fxSummary" class="status" style="margin-top:12px"></div></div>
@@ -186,7 +191,7 @@ function monthShift(s,n){let [y,m]=s.split("-").map(Number);const d=new Date(y,m
 function monthLabel(s){let [y,m]=s.split("-");return y+"年"+Number(m)+"月"}
 function go(p){page=p;document.querySelectorAll(".section").forEach(x=>x.classList.toggle("active",x.id===p));document.querySelectorAll("[data-nav]").forEach(x=>x.classList.toggle("active",x.dataset.nav===p));$("pageTitle").textContent=NAV.find(x=>x[0]===p)[2];$("pageSubtitle").textContent=DESCS[p];$("eyebrow").textContent=p.toUpperCase()+" / WEALTH";updateQuickAction();window.scrollTo({top:0,behavior:"instant"});render()}
 function quickAction(){if(page==="wealth")openCash();else if(page==="portfolio")openHolding();else if(page==="planning")openGoal();else if(page==="reports")closeWealthMonth();else openEntry()}
-function updateQuickAction(){const labels={wealth:"＋ 现金账户",portfolio:"＋ 股票持仓",planning:"＋ 财务目标",reports:"保存快照"};$("primaryQuickAction").textContent=labels[page]||"＋ 记一笔";document.querySelector(".currency-switch").classList.toggle("hidden",["wealth","portfolio","planning","reports","accounts","settings"].includes(page))}
+function updateQuickAction(){const labels={wealth:"＋ 现金账户",portfolio:"＋ 股票持仓",planning:"＋ 财务目标",reports:"保存快照"};$("primaryQuickAction").textContent=labels[page]||"＋ 记一笔";document.querySelector(".currency-switch").classList.toggle("hidden",["overview","wealth","portfolio","planning","reports","accounts","settings"].includes(page));document.querySelector(".wealth-header-switch").classList.toggle("hidden",page!=="overview")}
 function navInit(){const button=([key,icon,name])=>'<button data-nav="'+key+'" onclick="go(\''+key+'\')"><span class="ico">'+icon+'</span>'+name+'</button>';$("sidenav").innerHTML=NAV.map(button).join("");$("bottomnav").innerHTML=[NAV[0],NAV[1],NAV[2],NAV[3]].map(([key,icon,name])=>'<button data-nav="'+key+'" onclick="go(\''+key+'\')"><span>'+icon+'</span>'+name.replace("管理","")+'</button>').join("")+'<button onclick="openMore()"><span>☰</span>更多</button>'}
 function openMore(){openModal("导航",'<div class="more-links">'+NAV.slice(4).map(([key,icon,name])=>'<button class="btn" onclick="closeModal();go(\''+key+'\')">'+icon+' '+name+'</button>').join("")+'</div>')}
 function trs(m=month,c=currency){return db.transactions.filter(t=>t.currency===c&&t.date.slice(0,7)===m)}
@@ -376,7 +381,7 @@ function renderWealthHome(){
  const w=wealthRollup(),any=w.rows.length>0;
  const coverage=wealthArray("cashAccounts").length+" 个现金账户 · "+wealthArray("holdings").length+" 项持仓 · "+wealthArray("liabilities").length+" 项负债";
  const cashCount=wealthArray("cashAccounts").filter(x=>numValid(x.balance)).length;
- $("wealthHome").innerHTML='<div class="wealth-home"><div class="wealth-hero"><div class="eyebrow" style="color:#b8d9d0">PERSONAL NET WORTH</div><div class="section-sub">估算净资产（统一折算 SGD）</div><h2>'+(any?esc(wealthMoney(w.total)):"尚未录入资产")+'</h2><div class="hint">'+esc(w.missing.length?"需补充 "+w.missing.join("、")+" 兑 SGD 的汇率，才能计算跨币种合计":coverage+" · 估值并非银行实时余额")+'</div><div class="toolbar"><button class="btn" onclick="go(\'wealth\')">管理资产与负债 ↗</button><button class="btn" onclick="go(\'reports\')">查看财富报告 ↗</button></div></div><div class="wealth-home-grid">'+
+ $("wealthHome").innerHTML='<div class="wealth-home"><div class="wealth-hero"><div class="eyebrow" style="color:#b8d9d0">PERSONAL NET WORTH</div><div class="section-sub">估算净资产（统一折算 '+wealthDisplayUnit+'）</div><h2>'+(any?esc(showWealthTotal(w.total)):"尚未录入资产")+'</h2><div class="hint">'+esc(w.missing.length?"需补充 "+w.missing.join("、")+" 兑 SGD 的汇率，才能计算跨币种合计":coverage+" · 估值并非银行实时余额")+'</div><div class="toolbar"><button class="btn" onclick="go(\'wealth\')">管理资产与负债 ↗</button><button class="btn" onclick="go(\'reports\')">查看财富报告 ↗</button></div></div><div class="wealth-home-grid">'+
  [["银行现金账户",cashCount+" 个","需要手动更新余额"],["股票持仓",wealthArray("holdings").length+" 项","USD / SGD 手动估值"],["未偿负债",wealthArray("liabilities").length+" 项","从净资产中扣除"]].map(x=>'<div class="wealth-stat"><small>'+x[0]+'</small><b>'+x[1]+'</b><small>'+x[2]+'</small></div>').join("")+'</div></div>';
 }
 function cashFormTitle(x){return x?"编辑现金账户":"新增现金账户"}
@@ -489,7 +494,7 @@ function renderHealthMetrics(w){
 
 let wealthDisplayUnit="SGD";
 function showWealthTotal(n){if(n===null||!Number.isFinite(Number(n)))return "汇率待补";if(wealthDisplayUnit==="SGD")return cashValue("SGD",n);const rate=rates().CNY;return Number.isFinite(rate)&&rate>0?cashValue("CNY",n/rate):"请设置 CNY→SGD 汇率"}
-function setWealthUnit(unit){if(unit!=="SGD"&&unit!=="CNY")return;wealthDisplayUnit=unit;document.querySelectorAll("[data-wealth-unit]").forEach(el=>{const active=el.dataset.wealthUnit===unit;el.classList.toggle("active",active);el.setAttribute("aria-pressed",String(active))});if(page==="wealth")renderWealth()}
+function setWealthUnit(unit){if(unit!=="SGD"&&unit!=="CNY")return;wealthDisplayUnit=unit;document.querySelectorAll("[data-wealth-unit]").forEach(el=>{const active=el.dataset.wealthUnit===unit;el.classList.toggle("active",active);el.setAttribute("aria-pressed",String(active))});if(page==="wealth")renderWealth();if(page==="overview")renderOverview()}
 function renderWealth(){
  const w=wealthRollup(),hasAssets=w.rows.length>0;
  $("wealthTotals").innerHTML=[["资产总额",w.missing.length?"汇率待补":showWealthTotal(w.byAsset.cash+w.byAsset.cash_management+w.byAsset.stocks),"银行现金 + 现金管理理财 + 股票"],["负债总额",w.missing.length?"汇率待补":showWealthTotal(Math.abs(w.byAsset.debt)),"未偿余额"],["估算净资产",hasAssets?showWealthTotal(w.total):"尚未录入","资产 − 负债"],["录入覆盖",w.rows.length+" 项","以最后录入的快照为准"]].map(([k,v,t],i)=>'<div class="card stat '+(i===2?"hero":"")+'"><div class="label">'+k+'</div><div class="value" style="font-size:clamp(17px,2.2vw,25px)">'+esc(v)+'</div><div class="meta">'+esc(t)+'</div></div>').join("");
