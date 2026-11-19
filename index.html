@@ -817,7 +817,7 @@ function confirmInvestmentCandidates(){
 function openHoldingPrice(holdingId){
  const h=wealthArray("holdings").find(x=>x.id===holdingId);if(!h)return;
  openModal("更新市价 · "+h.symbol,'<form id="holdingPriceForm" class="form-grid"><div class="wide note">只更新当前市价，不会修改交易流水、数量或成本。</div><label><span class="field-label">每股价格（'+h.currency+'）</span><input class="field" type="number" name="price" required min="0" step="any" value="'+esc(h.price)+'"></label><label><span class="field-label">估值日期</span><input class="field" type="date" name="asOf" required value="'+esc(h.asOf||today())+'"></label><button class="btn primary wide">更新估值</button></form>');
- $("holdingPriceForm").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(!numValid(d.price)||!validISO(d.asOf)){toast("价格或日期不正确");return}h.price=Number(d.price);h.asOf=d.asOf;save();closeModal()}
+ $("holdingPriceForm").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(!numValid(d.price)||!validISO(d.asOf)){toast("价格或日期不正确");return}if(!h.openingAsOf)h.openingAsOf=h.asOf||d.asOf;h.price=Number(d.price);h.asOf=d.asOf;save();closeModal()}
 }
 function openInvestmentTrade(holdingId,tradeType="buy"){
  const hs=wealthArray("holdings");if(!hs.length){toast("请先建立持仓");openHolding();return}
