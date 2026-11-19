@@ -121,7 +121,7 @@ body{overflow-x:clip}
 .snapshot-value{font-size:10px;word-break:break-word;font-variant-numeric:tabular-nums}
 .snapshot-pillar{background:#397f73;border-radius:6px 6px 0 0;width:55%;min-height:5px}
 .snapshot-col small{color:#819391;font-size:10px}
-</style>
+.review-checklist{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px;margin-top:18px}.review-line{display:flex;gap:11px;align-items:flex-start;font-size:13px;color:#506963;line-height:1.65}.review-line input{width:17px;height:17px;accent-color:#267563;margin-top:3px;flex:0 0 auto}</style>
 </head>
 <body>
 <div class="app">
@@ -137,7 +137,7 @@ body{overflow-x:clip}
 <div class="note" style="margin-top:17px">账户余额采用截至记录日期的手动快照。信用卡还款、银行转账、证券买入卖出不能同时作为消费或收入重复计入净资产。银行账户请仅使用昵称，不填写完整卡号。</div></section>
 <section class="section" id="portfolio"><div class="row"><div><div class="section-title">股票与投资持仓</div><div class="section-sub">美股 USD、新加坡股 SGD；支持手动更新最新价格及估值日期。</div></div><button class="btn primary" onclick="openHolding()">＋ 新增持仓</button></div><div id="portfolioTotals" class="grid4" style="margin-top:16px"></div><div id="holdingsCards" class="wealth-card-list"></div><div class="note" style="margin-top:16px">持仓数量 × 手动填写的价格 = 估算市值；收益按现价与成本价计算，未含手续费、税费及分红。不自动获取实时行情，也不假定尚未持有的基金或股票。</div></section>
 <section class="section" id="planning"><div class="row"><div><div class="section-title">财务目标与未来现金流</div><div class="section-sub">建立大额计划，安排资金，不要求每日记账。</div></div><div class="toolbar"><button class="btn" onclick="openGoal()">＋ 财务目标</button><button class="btn primary" onclick="openPayment()">＋ 未来收支</button></div></div><div class="split"><div class="card"><div class="section-title">财务目标</div><div id="goalCards" class="wealth-card-list"></div></div><div class="card"><div class="section-title">未来 12 个月 · 已计划现金流</div><div id="paymentSummary" class="status" style="margin-top:12px"></div><div id="paymentCards" class="wealth-card-list"></div></div></div><div class="note" style="margin-top:16px">计划仅包含你明确录入的项目。储备金必须自行指定，不能因为账户里有钱就默认已分配给多个目标。</div></section>
-<section class="section" id="reports"><div class="row"><div><div class="section-title">财富报告与月度结账</div><div class="section-sub">按月更新资产与收支，确认数据覆盖范围，再记录月末财富快照。</div></div><div class="toolbar"><button class="btn" onclick="exportWealthReport()">↓ 导出报告</button><button class="btn primary" onclick="closeWealthMonth()">确认本月快照</button></div></div><div class="card" style="margin-top:16px"><div id="reportArea"></div></div><div class="card" style="margin-top:16px"><div class="section-title">净资产历史趋势</div><div id="snapshotTrend" style="margin-top:15px"></div></div><div class="card" style="margin-top:16px"><div class="section-title">历史净资产快照</div><div id="snapshotCards" class="wealth-card-list"></div></div></section>
+<section class="section" id="reports"><div class="row"><div><div class="section-title">财富报告与月度结账</div><div class="section-sub">按月更新资产与收支，确认数据覆盖范围，再记录月末财富快照。</div></div><div class="toolbar"><button class="btn" onclick="exportWealthReport()">↓ 导出报告</button><button class="btn primary" onclick="closeWealthMonth()">确认本月快照</button></div></div><div class="card" style="margin-top:16px"><div class="section-title">月度整理检查</div><div class="section-sub">可按你自己的节奏集中录入；打勾只表示你已人工检查该项。</div><div id="reviewChecklist" class="review-checklist"></div></div><div class="card" style="margin-top:16px"><div id="reportArea"></div></div><div class="card" style="margin-top:16px"><div class="section-title">净资产历史趋势</div><div id="snapshotTrend" style="margin-top:15px"></div></div><div class="card" style="margin-top:16px"><div class="section-title">历史净资产快照</div><div id="snapshotCards" class="wealth-card-list"></div></div></section>
 <section class="section active" id="overview"><div id="wealthHome"></div><div class="row" style="margin-bottom:17px"><div class="toggle" id="monthTabs"></div><span class="status" id="coverage">仅统计已记录交易</span></div><div class="grid4" id="stats"></div>
 <div class="split"><div class="card"><div class="row"><div><div class="section-title">消费类别分布</div><div class="section-sub">看看钱都花到了哪里</div></div><button class="btn small" onclick="go('comparison')">月度对比 ↗</button></div><div class="donut-wrap"><div id="donut" class="donut"><div class="donut-label"><small>本月支出</small><strong id="donutTotal">—</strong></div></div><div class="legend" id="legend"></div></div></div><div class="card"><div class="row"><div><div class="section-title">分类支出排行</div><div class="section-sub">本月消费最多的类别</div></div></div><div id="categoryBars" class="bars"></div></div></div>
 <div class="split"><div class="card"><div class="row"><div><div class="section-title">预算进度</div><div class="section-sub">及时发现可能超支的项目</div></div><button class="btn small" onclick="go('budgets')">管理预算 ↗</button></div><div id="homeBudgets"></div></div><div class="card"><div class="row"><div><div class="section-title">最近交易</div><div class="section-sub">已录入的最新消费与收入</div></div><button class="btn small" onclick="go('transactions')">查看全部 ↗</button></div><div class="mini-list" id="recent"></div></div></div>
@@ -493,9 +493,15 @@ function reportData(){
  const w=wealthRollup(),m=today().slice(0,7),s=monthSummary(m,"SGD"),c=monthSummary(m,"CNY");
  return {month:m,asOf:today(),cashAccounts:wealthArray("cashAccounts").length,holdings:wealthArray("holdings").length,liabilities:wealthArray("liabilities").length,netWorthSGD:w.total,missingFx:w.missing,fxRates:{...(db.fxRates||{})},sgd:s,cny:c,notes:"净资产是估值快照；月度结余来自已录入交易，不等于净资产变化或银行余额变动。"};
 }
+
+const REVIEW_ITEMS=[["bank","已导入本月需要的银行流水 / PDF"],["cash","已更新现金账户余额和日期"],["stocks","已更新股票市值及估值日期"],["debt","已检查负债是否有变化"],["reconcile","已核对异常、重复记录和收入支出"]];
+function toggleMonthCheck(key,value){if(!REVIEW_ITEMS.some(x=>x[0]===key))return;db.monthChecks=db.monthChecks||{};const m=today().slice(0,7);db.monthChecks[m]={...(db.monthChecks[m]||{}),[key]:Boolean(value)};save()}
+
 function renderReports(){
  const r=reportData(),snapshots=wealthArray("wealthSnapshots").slice().sort((a,b)=>b.asOf.localeCompare(a.asOf));
- $("reportArea").innerHTML='<div class="row"><div><div class="section-title">'+esc(monthLabel(r.month))+' · 财富复盘</div><div class="section-sub">截至 '+esc(r.asOf)+'，以你实际录入的数据为依据</div></div><span class="tag">未核对银行正式账单</span></div>'+
+ const checks=db.monthChecks?.[r.month]||{},done=REVIEW_ITEMS.filter(x=>checks[x[0]]).length;
+ $("reviewChecklist").innerHTML=REVIEW_ITEMS.map(([k,label])=>'<label class="review-line"><input type="checkbox" '+(checks[k]?"checked":"") +' onchange="toggleMonthCheck(\''+k+'\',this.checked)"><span>'+esc(label)+'</span></label>').join("")+'<div class="status" style="margin-top:9px">已检查 '+done+"/"+REVIEW_ITEMS.length+' 项；这只是你的自查状态，不代表银行自动验证。</div>';
+ $("reportArea").innerHTML='<div class="row"><div><div class="section-title">'+esc(monthLabel(r.month))+' · 财富复盘</div><div class="section-sub">截至 '+esc(r.asOf)+'，以你实际录入的数据为依据</div></div><span class="tag">'+(done===REVIEW_ITEMS.length?"用户标记：已完成自查":"用户自查中："+done+"/"+REVIEW_ITEMS.length)+'</span></div>'+
  '<div class="wealth-home-grid" style="margin-top:18px"><div class="wealth-stat"><small>估算净资产（SGD）</small><b>'+esc(wealthMoney(r.netWorthSGD))+'</b><small>'+esc(r.missingFx.length?"缺少 "+r.missingFx.join("、")+" 汇率":"参考汇率 "+(r.fxRates.asOf||"未记录"))+'</small></div>'+
  '<div class="wealth-stat"><small>新加坡 SGD 月度结余</small><b>'+cashValue("SGD",r.sgd.net)+'</b><small>'+r.sgd.count+' 笔已录入交易</small></div>'+
  '<div class="wealth-stat"><small>中国 CNY 月度结余</small><b>'+cashValue("CNY",r.cny.net)+'</b><small>'+r.cny.count+' 笔已录入交易</small></div></div>'+
@@ -510,10 +516,10 @@ function closeWealthMonth(){
  const r=reportData();
  if(!wealthEntries().length){toast("请先录入至少一个资产或负债余额，再创建快照");return}
  if(!confirm("保存 "+monthLabel(r.month)+" 截至 "+r.asOf+" 的资产快照？这不是银行已对账确认，金额取自当前手动记录。"))return;
- db.wealthSnapshots=wealthArray("wealthSnapshots");db.wealthSnapshots.push({...r,id:id(),savedAt:new Date().toISOString()});save();toast("财富快照已保存");
+ db.wealthSnapshots=wealthArray("wealthSnapshots");db.wealthSnapshots.push({...r,id:id(),savedAt:new Date().toISOString(),userReviewChecks:{...(db.monthChecks?.[r.month]||{})}});save();toast("财富快照已保存");
 }
 function exportWealthReport(){
- const r=reportData(),snapshots=wealthArray("wealthSnapshots");const contents={format:"chengli-wealth-review-v1",current:r,history:snapshots};
+ const r=reportData(),snapshots=wealthArray("wealthSnapshots");const contents={format:"chengli-wealth-review-v1",current:r,reviewChecks:db.monthChecks?.[r.month]||{},history:snapshots};
  download(JSON.stringify(contents,null,2),"chengli-wealth-review-"+r.month+".json","application/json;charset=utf-8");toast("财富复盘数据已导出");
 }
 
