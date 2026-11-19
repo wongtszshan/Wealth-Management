@@ -495,9 +495,8 @@ function holdingMarket(h){return investmentPosition(h).quantity*Number(h.price||
 function holdingCost(h){return investmentPosition(h).bookCost}
 
 function brokerAccounts(){
- if(!Array.isArray(db.brokerageAccounts))db.brokerageAccounts=[];
- if(!db.brokerageAccounts.length)db.brokerageAccounts.push({id:"broker-moomoo",name:"moomoo",cashBalances:{USD:null,SGD:null},reportedTotal:null,reportedCurrency:"SGD",asOf:"",note:"由原有持仓归入账户；现金与报告总额待录入"});
- return db.brokerageAccounts;
+ const existing=wealthArray("brokerageAccounts");
+ return existing.length?existing:[{id:"broker-moomoo",name:"moomoo",cashBalances:{USD:null,SGD:null},reportedTotal:null,reportedCurrency:"SGD",asOf:"",note:"存量持仓归入券商账户；请按报表录入现金与总额"}];
 }
 function brokerageForHolding(h){return brokerAccounts().find(a=>a.id===h.brokerageAccountId)||brokerAccounts()[0]}
 function brokerageComputed(a){
@@ -526,7 +525,7 @@ function renderBrokerageAccounts(){
  }).join("");
 }
 function openBrokerageAccount(accountId){
- const a=brokerAccounts().find(x=>x.id===accountId);if(!a)return;
+ const source=brokerAccounts().find(x=>x.id===accountId);if(!source)return;const a={...source,cashBalances:{...source.cashBalances}};
  openModal("券商账户 · "+a.name,'<form id="brokerageForm" class="form-grid">'+
  '<label class="wide"><span class="field-label">券商账户昵称</span><input class="field" name="name" required maxlength="80" value="'+esc(a.name)+'"></label>'+
  '<label><span class="field-label">USD 现金余额</span><input class="field" type="number" min="0" step="0.01" name="USD" placeholder="未录入" value="'+esc(a.cashBalances?.USD??"")+'"></label>'+
@@ -543,6 +542,7 @@ function openBrokerageAccount(accountId){
   if(f.asOf&&!validISO(f.asOf)){toast("日期格式不正确");return}
   a.name=f.name.trim();a.cashBalances={USD:f.USD===""?null:Number(f.USD),SGD:f.SGD===""?null:Number(f.SGD),CNY:f.CNY===""?null:Number(f.CNY)};
   a.reportedTotal=f.reportedTotal===""?null:Number(f.reportedTotal);a.reportedCurrency=f.reportedCurrency;a.asOf=f.asOf;
+  db.brokerageAccounts=wealthArray("brokerageAccounts");const idx=db.brokerageAccounts.findIndex(x=>x.id===a.id);if(idx>=0)db.brokerageAccounts[idx]=a;else db.brokerageAccounts.push(a);
   save();closeModal();toast("券商账户已保存，报告总额只用于对账");
  };
 }
