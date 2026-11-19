@@ -201,11 +201,28 @@ body{overflow-x:clip}
 
 .loan-payment-history{display:grid;gap:8px;margin-top:16px}.loan-payment-item{display:flex;gap:10px;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #e7eeea}.loan-payment-item .section-sub{margin-top:4px}
 .pending-account-tools{margin-bottom:15px;padding:14px;border-radius:12px;background:#f4f8f6;border:1px solid #e3eeea}.pending-account-tools .row{align-items:center}.pending-account-tools .field{min-width:145px;flex:1}.pending-account-tools .section-sub{margin-top:6px}@media(max-width:740px){.pending-account-tools .row{flex-direction:column;align-items:stretch}.pending-account-tools .btn{width:100%}}
+
+/* v2.0.8: Consistent, overflow-safe investment form controls on narrow screens */
+.modalbg{min-width:0;max-width:100vw;overflow:hidden}
+.modal{min-width:0;max-width:min(570px,calc(100vw - 24px));overflow-x:hidden;overscroll-behavior-x:none}
+#modalBody{min-width:0;max-width:100%;overflow-x:hidden}
+#holdingForm{min-width:0;width:100%;max-width:100%;grid-template-columns:repeat(2,minmax(0,1fr))}
+#holdingForm>label{display:block;min-width:0;max-width:100%;overflow:hidden}
+#holdingForm .field{display:block;box-sizing:border-box;width:100%;min-width:0;min-inline-size:0;max-width:100%;max-inline-size:100%;font-size:16px}
+#holdingForm input[type="date"]{min-width:0;min-inline-size:0;width:100%;max-width:100%;max-inline-size:100%;-webkit-min-logical-width:0}
+@media(max-width:740px){
+ .modalbg{padding:12px}
+ .modal{width:100%;max-width:100%;padding:18px 16px;max-height:calc(100dvh - 24px)}
+ #holdingForm{grid-template-columns:minmax(0,1fr);gap:13px}
+ #holdingForm .wide{grid-column:1}
+ #holdingForm>label{width:100%}
+ #holdingForm input[type="date"]{appearance:none;-webkit-appearance:none;min-height:46px}
+}
 </style>
 </head>
 <body>
 <div class="app">
-<aside class="side"><div class="brand"><div class="logo">澄</div><div><strong>澄理</strong><small>WEALTH MANAGEMENT</small></div></div><nav class="nav" id="sidenav"></nav><div class="side-foot">PRIVATE FINANCE WORKSPACE<br><b id="sideStatus">● 本地账本</b><br>SGD · CNY 双币种支持<br><span style="opacity:.65">Version 2.0.7</span></div></aside>
+<aside class="side"><div class="brand"><div class="logo">澄</div><div><strong>澄理</strong><small>WEALTH MANAGEMENT</small></div></div><nav class="nav" id="sidenav"></nav><div class="side-foot">PRIVATE FINANCE WORKSPACE<br><b id="sideStatus">● 本地账本</b><br>SGD · CNY 双币种支持<br><span style="opacity:.65">Version 2.0.8</span></div></aside>
 <main>
 <div class="top"><div><div class="eyebrow" id="eyebrow">PERSONAL FINANCE</div><h1 id="pageTitle">财富总览</h1><div class="muted" id="pageSubtitle">掌握净资产、资产配置与现金流的整体状况。</div></div><div class="topright"><div class="wealth-header-switch wealth-total-switch hidden" role="group" aria-label="财富总览汇总显示币种"><button type="button" class="wealth-unit-option active" data-wealth-unit="SGD" aria-pressed="true" onclick="setWealthUnit('SGD')">S$ SGD</button><button type="button" class="wealth-unit-option" data-wealth-unit="CNY" aria-pressed="false" onclick="setWealthUnit('CNY')">¥ CNY</button></div><div class="currency-switch" role="group" aria-label="显示币种"><button type="button" class="currency-option active" data-currency="SGD" aria-pressed="true" onclick="setCurrency('SGD')">S$ <span>SGD</span></button><button type="button" class="currency-option" data-currency="CNY" aria-pressed="false" onclick="setCurrency('CNY')">¥ <span>CNY</span></button></div><button class="btn primary new-entry-btn" id="primaryQuickAction" onclick="quickAction()">＋ 记一笔</button></div></div>
 <section class="section" id="wealth">
