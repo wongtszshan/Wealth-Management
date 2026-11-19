@@ -631,6 +631,49 @@ function openHolding(itemId){
  '<div class="wide note">成本与现价为每股/每份价格。没有行情连接时请自行更新；ETF、基金只是可选类型，不会自动创建任何持仓。</div><button class="btn primary wide">保存持仓</button></form>');
  $("holdingForm").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(["quantity","cost","price"].some(k=>!numValid(d[k]))||!validISO(d.asOf)){toast("请填写有效持仓数量、价格和日期");return}const record={...d,quantity:Number(d.quantity),cost:Number(d.cost),price:Number(d.price),symbol:d.symbol.trim().toUpperCase(),id:itemId||id()};db.holdings=wealthArray("holdings");const i=db.holdings.findIndex(x=>x.id===itemId);if(i>=0)db.holdings[i]=record;else db.holdings.push(record);save();closeModal();toast("持仓已更新")}
 }
+
+function openHoldingPrice(holdingId){
+ const h=wealthArray("holdings").find(x=>x.id===holdingId);if(!h)return;
+ openModal("更新市价 · "+h.symbol,'<form id="holdingPriceForm" class="form-grid"><div class="wide note">只更新当前市价，不会修改交易流水、数量或成本。</div><label><span class="field-label">每股价格（'+h.currency+'）</span><input class="field" type="number" name="price" required min="0" step="any" value="'+esc(h.price)+'"></label><label><span class="field-label">估值日期</span><input class="field" type="date" name="asOf" required value="'+esc(h.asOf||today())+'"></label><button class="btn primary wide">更新估值</button></form>');
+ $("holdingPriceForm").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(!numValid(d.price)||!validISO(d.asOf)){toast("价格或日期不正确");return}h.price=Number(d.price);h.asOf=d.asOf;save();closeModal()}
+}
+function openInvestmentTrade(holdingId,tradeType="buy"){
+ const hs=wealthArray("holdings");if(!hs.length){toast("请先建立持仓");openHolding();return}
+ const chosen=hs.find(h=>h.id===holdingId)||hs[0],type=["buy","sell","dividend"].includes(tradeType)?tradeType:"buy";
+ openModal("moomoo · 股票交易记录",'<form id="investmentTradeForm" class="form-grid">'+
+ '<label class="wide"><span class="field-label">选择持仓</span><select name="holdingId" class="field">'+hs.map(h=>'<option value="'+esc(h.id)+'" '+(h.id===chosen.id?"selected":"")+'>'+esc(h.symbol)+' · '+esc(brokerageForHolding(h).name)+' · '+esc(h.currency)+'</option>').join("")+'</select></label>'+
+ '<label><span class="field-label">交易类型</span><select name="type" class="field" id="investType"><option value="buy" '+(type==="buy"?"selected":"")+'>买入</option><option value="sell" '+(type==="sell"?"selected":"")+'>卖出</option><option value="dividend" '+(type==="dividend"?"selected":"")+'>现金分红</option></select></label>'+
+ '<label><span class="field-label">日期</span><input name="date" class="field" type="date" required value="'+today()+'"></label>'+
+ '<label class="trade-quantity"><span class="field-label">成交股数/份额</span><input name="quantity" type="number" step="any" min="0.00000001" class="field"></label>'+
+ '<label class="trade-quantity"><span class="field-label">成交单价</span><input name="price" type="number" step="any" min="0" class="field"></label>'+
+ '<label class="trade-quantity"><span class="field-label">交易手续费</span><input name="fee" type="number" step="any" min="0" class="field" value="0"></label>'+
+ '<label class="trade-dividend hidden"><span class="field-label">税后分红金额</span><input name="amount" type="number" step="any" min="0.01" class="field"></label>'+
+ '<label class="wide"><span class="field-label">备注</span><input name="note" class="field" maxlength="180" placeholder="可记录券商流水编号"></label>'+
+ '<div class="wide note">买卖采用移动加权平均成本法。卖出不能超过该日期可用持仓。此处只记录证券交易，不自动改写券商现金余额；仍需以券商报表核对。</div>'+
+ '<button class="btn primary wide">记录交易</button></form>');
+ const sel=$("investType"),change=()=>{const dividend=sel.value==="dividend";$("investmentTradeForm").querySelectorAll(".trade-quantity").forEach(el=>el.classList.toggle("hidden",dividend));$("investmentTradeForm").querySelector(".trade-dividend").classList.toggle("hidden",!dividend)};
+ sel.onchange=change;change();
+ $("investmentTradeForm").onsubmit=e=>{
+  e.preventDefault();const d=Object.fromEntries(new FormData(e.target)),h=hs.find(x=>x.id===d.holdingId);
+  if(!h||!validISO(d.date)){toast("请选择有效证券和日期");return}
+  const isDiv=d.type==="dividend";
+  if(isDiv?(!numValid(d.amount)||Number(d.amount)<=0):(!numValid(d.quantity)||Number(d.quantity)<=0||!numValid(d.price)||!numValid(d.fee))){toast("请输入有效交易数额");return}
+  const t={id:id(),holdingId:h.id,brokerageAccountId:brokerageForHolding(h).id,date:d.date,type:d.type,quantity:isDiv?0:Number(d.quantity),price:isDiv?0:Number(d.price),fee:isDiv?0:Number(d.fee),amount:isDiv?Number(d.amount):null,note:d.note.trim(),createdAt:new Date().toISOString(),currency:h.currency};
+  const result=investmentPosition(h,[...investmentTradesFor(h.id),t].sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||"").localeCompare(b.createdAt||"")||a.id.localeCompare(b.id)));
+  if(result.invalid){toast("交易无法保存："+result.invalid);return}
+  db.investmentTrades=wealthArray("investmentTrades");db.investmentTrades.push(t);save();closeModal();toast("已记录 "+h.symbol+" "+(isDiv?"分红":d.type==="buy"?"买入":"卖出")+"，持仓与盈亏已重新计算");
+ };
+}
+function removeInvestmentTrade(tradeId){
+ const t=wealthArray("investmentTrades").find(x=>x.id===tradeId);if(!t)return;
+ const h=wealthArray("holdings").find(x=>x.id===t.holdingId);if(!h)return;
+ const rest=investmentTradesFor(h.id).filter(x=>x.id!==tradeId);
+ const result=investmentPosition(h,rest);
+ if(result.invalid){toast("无法撤销：后续交易会导致无效持仓（"+result.invalid+"）");return}
+ if(!confirm("撤销这笔 "+h.symbol+" 交易？这会重新计算历史持仓和已实现盈亏，其他记录仍保留。"))return;
+ db.investmentTrades=wealthArray("investmentTrades").filter(x=>x.id!==tradeId);save();toast("交易已撤销并重新计算");
+}
+
 function openLiability(itemId){
  const x=wealthArray("liabilities").find(x=>x.id===itemId)||{name:"",type:"credit",currency:currency==="CNY"?"CNY":"SGD",balance:"",asOf:localToday(),note:""};
  openModal(itemId?"编辑负债":"新增负债",'<form id="liabilityForm" class="form-grid">'+
