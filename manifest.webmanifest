@@ -1,0 +1,18 @@
+{
+  "name": "澄理 · Wealth Management",
+  "short_name": "澄理",
+  "description": "SGD / CNY 双币种个人财务与预算管理",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5f6f4",
+  "theme_color": "#192c34",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
