@@ -689,6 +689,104 @@ function openHolding(itemId){
  $("holdingForm").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(["quantity","cost","price"].some(k=>!numValid(d[k]))||!validISO(d.asOf)){toast("请填写有效持仓数量、价格和日期");return}const record={...d,quantity:Number(d.quantity),cost:Number(d.cost),price:Number(d.price),symbol:d.symbol.trim().toUpperCase(),id:itemId||id(),openingAsOf:x.openingAsOf||x.asOf||d.asOf};db.holdings=wealthArray("holdings");const i=db.holdings.findIndex(x=>x.id===itemId);if(i>=0)db.holdings[i]=record;else db.holdings.push(record);save();closeModal();toast("持仓已更新")}
 }
 
+
+let selectedInvestmentImageFiles=[],investmentCandidates=[],investmentImportWarnings=[];
+function handleInvestmentImages(files){
+ const chosen=[...files];selectedInvestmentImageFiles=chosen.filter(f=>["image/png","image/jpeg","image/webp"].includes(f.type));investmentCandidates=[];investmentImportWarnings=[];
+ const preview=$("investmentImagePreview");preview.innerHTML="";
+ for(const f of selectedInvestmentImageFiles.slice(0,10)){const img=document.createElement("img"),url=URL.createObjectURL(f);img.src=url;img.alt=f.name;img.onload=()=>URL.revokeObjectURL(url);preview.appendChild(img)}
+ $("analyzeInvestmentImagesBtn").disabled=!selectedInvestmentImageFiles.length;
+ $("investmentImportStatus").textContent=selectedInvestmentImageFiles.length+" 张有效截图待识别；点击「开始识别」才会发送图片。";
+ $("investmentImportWarnings").innerHTML="";$("investmentCandidates").innerHTML="";
+}
+async function analyzeInvestmentImages(){
+ if(!selectedInvestmentImageFiles.length){toast("请先选择券商交易截图");return}
+ if(!session){toast("请先在设置里连接 Cloudflare");return}
+ const button=$("analyzeInvestmentImagesBtn"),status=$("investmentImportStatus"),provider=$("investmentImageProvider").value;
+ button.disabled=true;
+ try{
+  if(selectedInvestmentImageFiles.length>5)throw Error("每批最多 5 张截图");
+  const staged=[],warnings=[];
+  for(let i=0;i<selectedInvestmentImageFiles.length;i++){
+   const f=selectedInvestmentImageFiles[i];if(f.size>4*1024*1024)throw Error("文件 "+f.name+" 超过 4MB，请压缩后重试");
+   status.textContent="正在解析第 "+(i+1)+"/"+selectedInvestmentImageFiles.length+" 张截图…";
+   const img={mediaType:f.type,base64:await imageToBase64(f)};
+   const response=await cloudRequest("/api/recognize","POST",{kind:"investment",provider,images:[img]});
+   for(const trade of response.trades||[])staged.push({...trade,id:id(),imageName:f.name,source:"AI · "+provider+" · "+f.name,selected:true,holdingId:"",fee:trade.fee??""});
+   for(const w of response.warnings||[])warnings.push(f.name+"："+w);
+  }
+  const hs=wealthArray("holdings");
+  for(const t of staged){const matches=hs.filter(h=>h.symbol.toUpperCase()===t.symbol.toUpperCase()&&(!t.currency||h.currency===t.currency));if(matches.length===1)t.holdingId=matches[0].id}
+  const signatures=new Set();for(const t of staged){const sig=[t.orderId||"",t.date,t.symbol,t.side,t.quantity,t.price].join("|");if(signatures.has(sig)){t.selected=false;t.duplicateInBatch=true}else signatures.add(sig)}
+  investmentCandidates=staged;investmentImportWarnings=warnings;renderInvestmentCandidates();
+  status.textContent="识别结束：提取 "+staged.length+" 条已成交候选。请核对日期、方向、均价、手续费与重复记录，确认后才会更新持仓。";
+  if(!staged.length)toast("未找到可确认的已成交记录；撤单和无效订单已忽略");
+ }catch(e){status.textContent="识别失败："+(e.message||e);toast("没有写入任何股票交易");investmentCandidates=[];renderInvestmentCandidates()}
+ finally{button.disabled=false}
+}
+function updateInvestmentCandidate(index,key,value){
+ const t=investmentCandidates[index];if(!t)return;
+ if(key==="selected")t[key]=!!value;
+ else t[key]=["quantity","price","fee"].includes(key)?value:String(value).trim();
+ renderInvestmentCandidateCounter();
+}
+function renderInvestmentCandidateCounter(){
+ const e=$("investmentCandidateCounter");if(!e)return;
+ const selected=investmentCandidates.filter(t=>t.selected).length;
+ e.textContent="已选择 "+selected+" / "+investmentCandidates.length+" 笔；未完成核对的不能提交";
+}
+function renderInvestmentCandidates(){
+ const root=$("investmentCandidates"),warnings=$("investmentImportWarnings");
+ warnings.innerHTML=investmentImportWarnings.length?'<div class="note" style="margin-top:12px">识别提醒：'+investmentImportWarnings.map(esc).join("；")+'</div>':"";
+ if(!investmentCandidates.length){root.innerHTML="";return}
+ const holdings=wealthArray("holdings");
+ root.innerHTML='<div class="row" style="margin:15px 0 10px"><strong>待确认股票成交记录</strong><span class="status" id="investmentCandidateCounter"></span></div>'+
+ investmentCandidates.map((t,i)=>{
+  const duplicate=!!t.duplicateInBatch,options='<option value="">选择现有持仓（必填）</option>'+holdings.map(h=>'<option value="'+esc(h.id)+'" '+(h.id===t.holdingId?"selected":"")+'>'+esc(h.symbol)+' · '+esc(brokerageForHolding(h).name)+' · '+esc(h.currency)+'</option>').join("");
+  const existing=t.orderId&&wealthArray("investmentTrades").some(x=>x.sourceOrderId===t.orderId&&x.holdingId===t.holdingId);
+  return '<div class="investment-candidate"><div class="row"><label class="investment-check"><input type="checkbox" '+(t.selected?"checked":"")+' onchange="updateInvestmentCandidate('+i+',\'selected\',this.checked)"> <b>'+esc(t.symbol)+' · '+(t.side==="buy"?"买入":"卖出")+'</b></label><span class="tag">'+esc(t.status==="filled"?"全部成交":"部分成交")+'</span></div>'+
+   '<div class="section-sub">'+esc(t.imageName||"")+" · "+(duplicate||existing?"⚠ 疑似重复":"等待人工复核")+'</div>'+
+   '<div class="investment-candidate-fields">'+
+   '<label class="wide"><span>关联持仓</span><select class="field" onchange="updateInvestmentCandidate('+i+',\'holdingId\',this.value)">'+options+'</select></label>'+
+   '<label><span>成交日期</span><input class="field" type="date" value="'+esc(t.date||"")+'" onchange="updateInvestmentCandidate('+i+',\'date\',this.value)"></label>'+
+   '<label><span>成交股数</span><input class="field" type="number" min="0.00000001" step="any" value="'+esc(t.quantity)+'" onchange="updateInvestmentCandidate('+i+',\'quantity\',this.value)"></label>'+
+   '<label><span>实际成交均价</span><input class="field" type="number" min="0.00000001" step="any" value="'+esc(t.price)+'" onchange="updateInvestmentCandidate('+i+',\'price\',this.value)"></label>'+
+   '<label><span>手续费（需核实，0请明确填0）</span><input class="field" type="number" min="0" step="any" placeholder="未从截图识别" value="'+esc(t.fee)+'" onchange="updateInvestmentCandidate('+i+',\'fee\',this.value)"></label>'+
+   '</div><div class="section-sub">委托号：'+esc(t.orderId||"截图未显示")+' · '+esc(t.note||"")+'</div></div>';
+ }).join("")+
+ '<div class="investment-confirm-bar"><span>请先检查截图是否与当前持仓基准重复，且核对成交价而非委托价。</span><button class="btn primary" onclick="confirmInvestmentCandidates()">确认所选成交并更新持仓</button></div>';
+ renderInvestmentCandidateCounter();
+}
+function confirmInvestmentCandidates(){
+ const selected=investmentCandidates.filter(x=>x.selected);
+ if(!selected.length){toast("没有勾选待入账的成交");return}
+ const holdings=wealthArray("holdings"),newRecords=[],signatures=new Set();
+ for(const t of selected){
+  const h=holdings.find(x=>x.id===t.holdingId);
+  if(!h){toast("请先为 "+t.symbol+" 选择现有持仓，未建档的股票请先建立持仓");return}
+  if(h.symbol.toUpperCase()!==t.symbol.toUpperCase()&&!confirm("识别代码 "+t.symbol+" 与关联持仓 "+h.symbol+" 不一致。确定是同一证券吗？"))return;
+  if(t.currency&&h.currency!==t.currency){toast("识别币种与关联持仓不一致："+t.symbol);return}
+  if(!validISO(t.date)){toast("请补齐 "+t.symbol+" 的成交日期（截图未显示日期时不能猜测）");return}
+  if(t.date<=(h.openingAsOf||h.asOf||"0000-00-00")){toast(t.symbol+" 成交日期不晚于期初持仓基准，直接导入会重复计算。需先重新核对起始持仓。");return}
+  const q=Number(t.quantity),p=Number(t.price),fee=Number(t.fee);
+  if(String(t.fee).trim()===""||!numValid(t.fee)||!Number.isFinite(q)||q<=0||!Number.isFinite(p)||p<=0){toast(t.symbol+" 成交数量、均价及手续费必须核实；未知手续费不能自动当成0");return}
+  const key=t.orderId?"order|"+h.id+"|"+t.orderId:"trade|"+[h.id,t.date,t.side,q,p].join("|");
+  if(signatures.has(key)||wealthArray("investmentTrades").some(x=>t.orderId?x.holdingId===h.id&&x.sourceOrderId===t.orderId:x.holdingId===h.id&&x.date===t.date&&x.type===t.side&&Number(x.quantity)===q&&Number(x.price)===p)){
+   toast("检测到重复成交："+t.symbol+"；请核对后取消勾选");return}
+  signatures.add(key);
+  newRecords.push({id:id(),holdingId:h.id,brokerageAccountId:brokerageForHolding(h).id,date:t.date,type:t.side,quantity:q,price:p,fee,amount:null,note:"截图识别后人工核对 · "+(t.note||""),createdAt:new Date().toISOString(),currency:h.currency,source:t.source,sourceOrderId:t.orderId||""});
+ }
+ for(const h of holdings){
+  const current=investmentTradesFor(h.id),added=newRecords.filter(t=>t.holdingId===h.id);
+  if(!added.length)continue;
+  const check=investmentPosition(h,[...current,...added].sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||"").localeCompare(b.createdAt||"")||a.id.localeCompare(b.id)));
+  if(check.invalid){toast(h.symbol+" 交易顺序不合法："+check.invalid+"；本批次未提交");return}
+ }
+ if(!confirm("确认将 "+newRecords.length+" 笔已成交证券交易写入 moomoo 持仓账本？这会重算持仓数量与盈亏，不会自动修改券商现金余额。"))return;
+ db.investmentTrades=wealthArray("investmentTrades");db.investmentTrades.push(...newRecords);
+ investmentCandidates=investmentCandidates.filter(t=>!t.selected);save();renderInvestmentCandidates();toast("已导入 "+newRecords.length+" 笔已核对的股票成交");
+}
+
 function openHoldingPrice(holdingId){
  const h=wealthArray("holdings").find(x=>x.id===holdingId);if(!h)return;
  openModal("更新市价 · "+h.symbol,'<form id="holdingPriceForm" class="form-grid"><div class="wide note">只更新当前市价，不会修改交易流水、数量或成本。</div><label><span class="field-label">每股价格（'+h.currency+'）</span><input class="field" type="number" name="price" required min="0" step="any" value="'+esc(h.price)+'"></label><label><span class="field-label">估值日期</span><input class="field" type="date" name="asOf" required value="'+esc(h.asOf||today())+'"></label><button class="btn primary wide">更新估值</button></form>');
