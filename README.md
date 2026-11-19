@@ -49,3 +49,14 @@ Worker 采用应用密码登录（会话默认有效期 30 天），云端 AES-2
 同步防护：使用 GitHub content SHA 检查版本，冲突时停止覆盖；新设备本地已有记录且云端不同也会先提示。当前仍不具备自动数据合并功能。登录会话保存在浏览器 localStorage，建议仅在本人可信设备上使用。
 
 警告：请勿在 GitHub 公开仓库、聊天对话或截图中公布密钥 / Token。后续应增加密码尝试频率限制、会话撤销与设备管理。
+
+## AI 图片账单识别（v1.2.0）
+网页的「批量导入」页面支持批量选择截图（单次最多 5 张），选择 Kimi K2.5 或 Claude Sonnet 5.5，点击「开始识别」后发送图片。结果进入「待确认交易」，必须人工复核才会写入账本。
+
+需在 `wealth-management-api` → Settings → Variables and Secrets 添加 **Secret**：
+- `KIMI_API_KEY`：Moonshot AI 官方 API Key（非其他中转商 Key）
+- `ANTHROPIC_API_KEY`：Anthropic 官方 API Key（非其他中转商 Key）
+
+两者按需配置一个或两个。用户已有的其他 Worker 的 Secret 不会自动共享。Worker 的模型调用处使用官方 API 入口和模型 ID，使用量按照各提供商计费。接口要求用户已登录，单次限制 1–5 张图及请求大小；未完成实际模型凭据测试前不能保证真实识别成功。
+
+隐私：截图仅在用户点击「开始识别」后传往 Cloudflare Worker，再发送给所选模型商；模型商可能按照其数据处理政策处理图像。不要上传完整卡号或身份证件照片。原始截图不写入 GitHub 私库。建议进一步实现服务端调用频率与费用上限。
