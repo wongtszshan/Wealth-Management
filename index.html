@@ -526,7 +526,7 @@ function renderBrokerageAccounts(){
   const cashComplete=["USD","SGD"].every(c=>a.cashBalances?.[c]!==null&&a.cashBalances?.[c]!==undefined&&a.cashBalances?.[c]!=="");const diff=cashComplete&&reported!==null&&calc.total!==null?reported-calc.total:null;
   const unknownCash=["USD","SGD","CNY"].filter(c=>a.cashBalances?.[c]===null||a.cashBalances?.[c]===undefined);
   return '<div class="card brokerage-account-card"><div class="row"><div><div class="section-title">'+esc(a.name)+' · 券商账户</div><div class="section-sub">总资产 → 账户现金 + 所有股票持仓 → 买卖流水</div></div><button class="btn small primary" onclick="openBrokerageAccount(\''+esc(a.id)+'\')">编辑账户</button></div>'+
-  '<div class="brokerage-figures"><div><small>券商报告总资产</small><b>'+(hasReport?cashValue(a.reportedCurrency||"SGD",a.reportedTotal):"未录入")+'</b></div>'+
+  '<div class="brokerage-figures"><div><small>券商报告账户净值</small><b>'+(hasReport?cashValue(a.reportedCurrency||"SGD",a.reportedTotal):"未录入")+'</b></div>'+
   '<div><small>内部计算总资产 (SGD)</small><b>'+(calc.total===null?"缺少汇率":!cashComplete?"已知资产 "+cashValue("SGD",calc.total):cashValue("SGD",calc.total))+'</b></div>'+
   '<div><small>待核对差额 (SGD)</small><b>'+(diff===null?"尚未核对":cashValue("SGD",diff))+'</b></div></div>'+
   '<div class="brokerage-cash-breakdown"><b>账户现金</b>'+["USD","SGD","CNY"].map(c=>'<span>'+c+'：'+(a.cashBalances?.[c]==null?"未录入":cashValue(c,a.cashBalances[c]))+'</span>').join("")+'</div>'+
@@ -541,10 +541,10 @@ function openBrokerageAccount(accountId){
  '<label><span class="field-label">USD 现金余额</span><input class="field" type="number" min="0" step="0.01" name="USD" placeholder="未录入" value="'+esc(a.cashBalances?.USD??"")+'"></label>'+
  '<label><span class="field-label">SGD 现金余额</span><input class="field" type="number" min="0" step="0.01" name="SGD" placeholder="未录入" value="'+esc(a.cashBalances?.SGD??"")+'"></label>'+
  '<label><span class="field-label">CNY 现金余额</span><input class="field" type="number" min="0" step="0.01" name="CNY" placeholder="未录入" value="'+esc(a.cashBalances?.CNY??"")+'"></label>'+
- '<label><span class="field-label">报告总资产币种</span><select class="field" name="reportedCurrency">'+opts(["SGD","USD","CNY"],a.reportedCurrency||"SGD")+'</select></label>'+
- '<label><span class="field-label">券商报告总资产</span><input class="field" type="number" min="0" step="0.01" name="reportedTotal" placeholder="仅用于对账" value="'+esc(a.reportedTotal??"")+'"></label>'+
+ '<label><span class="field-label">报告净值币种</span><select class="field" name="reportedCurrency">'+opts(["SGD","USD","CNY"],a.reportedCurrency||"SGD")+'</select></label>'+
+ '<label><span class="field-label">券商报告账户净值</span><input class="field" type="number" min="0" step="0.01" name="reportedTotal" placeholder="仅用于对账" value="'+esc(a.reportedTotal??"")+'"></label>'+
  '<label><span class="field-label">报告日期</span><input class="field" type="date" name="asOf" value="'+esc(a.asOf||today())+'"></label>'+
- '<div class="wide note">这里只填账户现金（不是购买力或保证金融资）与券商报表总资产。账户总资产仅作核对，不会与内部持仓重复相加。不同日期、未结算款项和汇率会造成差异。</div>'+
+ '<div class="wide note">这里只填账户现金（不是购买力或保证金融资）与券商报表的净资产/账户权益。填有账户净值时财富总览以该金额计入一次，内部持仓和现金只作分解与核对。不同日期、未结算款项和汇率会造成差异。</div>'+
  '<button class="btn primary wide">保存券商账户</button></form>');
  $("brokerageForm").onsubmit=e=>{
   e.preventDefault();const f=Object.fromEntries(new FormData(e.target));
@@ -553,7 +553,7 @@ function openBrokerageAccount(accountId){
   a.name=f.name.trim();a.cashBalances={USD:f.USD===""?null:Number(f.USD),SGD:f.SGD===""?null:Number(f.SGD),CNY:f.CNY===""?null:Number(f.CNY)};
   a.reportedTotal=f.reportedTotal===""?null:Number(f.reportedTotal);a.reportedCurrency=f.reportedCurrency;a.asOf=f.asOf;
   db.brokerageAccounts=wealthArray("brokerageAccounts");const idx=db.brokerageAccounts.findIndex(x=>x.id===a.id);if(idx>=0)db.brokerageAccounts[idx]=a;else db.brokerageAccounts.push(a);
-  save();closeModal();toast("券商账户已保存，报告总额只用于对账");
+  save();closeModal();toast("券商账户已保存，报告净值只用于对账");
  };
 }
 
