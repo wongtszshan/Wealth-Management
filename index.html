@@ -370,6 +370,35 @@ function openCash(itemId,presetType){
  '<div class="wide note">请填写银行当前实际余额；这里不会从消费流水重复加减，也不保存完整银行卡号。</div><button class="btn primary wide">保存余额记录</button></form>');
  $("cashForm").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(!numValid(d.balance)||!validISO(d.asOf)){toast("请填写有效余额和日期");return}const record={...d,balance:Number(d.balance),id:itemId||id()};db.cashAccounts=wealthArray("cashAccounts");const index=db.cashAccounts.findIndex(a=>a.id===itemId);if(index>=0)db.cashAccounts[index]=record;else db.cashAccounts.push(record);save();closeModal();toast("现金余额已保存")}
 }
+
+function showAccountTransactions(itemId){
+ const a=wealthArray("cashAccounts").find(x=>x.id===itemId);if(!a)return;
+ if(!["SGD","CNY"].includes(a.currency)){toast("当前收支流水仅支持 SGD/CNY");return}
+ setCurrency(a.currency);go("transactions");$("search").value=a.name;renderTransactions();
+ toast("当前只显示与 "+a.name+" 匹配的流水；未指定账户的交易不会显示");
+}
+function openBalanceReconcile(itemId){
+ const a=wealthArray("cashAccounts").find(x=>x.id===itemId);if(!a)return;
+ openModal("校对实际余额 · "+a.name,'<form id="reconcileForm" class="form-grid">'+
+ '<div class="wide note">原记录余额 '+cashValue(a.currency,a.balance)+'。这里专门记录账实校对差额，不算真实消费或收入。正常的每月余额更新请使用「编辑」。</div>'+
+ '<label><span class="field-label">当前实际余额</span><input class="field" name="actual" type="number" min="0" step="0.01" required value="'+esc(a.balance)+'"></label>'+
+ '<label><span class="field-label">核对日期</span><input class="field" name="asOf" type="date" required value="'+esc(today())+'"></label>'+
+ '<label class="wide"><span class="field-label">核对备注</span><input class="field" name="note" maxlength="160" value="校对操作产生的差额" required></label>'+
+ '<button class="btn primary wide">记录校对差额并更新余额</button></form>');
+ $("reconcileForm").onsubmit=e=>{
+  e.preventDefault();const d=Object.fromEntries(new FormData(e.target));
+  if(!numValid(d.actual)||!validISO(d.asOf)){toast("请输入正确的余额和日期");return}
+  const before=Number(a.balance),after=Number(d.actual),delta=Math.round((after-before)*100)/100;
+  if(!Number.isFinite(delta)){toast("余额差额计算失败");return}
+  if(delta!==0){
+   const txn={id:id(),date:d.asOf,description:"余额校对 · "+a.name,amount:Math.abs(delta),adjustmentDelta:delta,type:"adjustment",currency:a.currency,category:"其他",account:a.name,accountId:a.id,source:"余额校对",note:d.note.trim()||"校对操作产生的差额"};
+   db.transactions.push(txn);db.balanceReconciliations=wealthArray("balanceReconciliations");
+   db.balanceReconciliations.push({id:txn.id,accountId:a.id,currency:a.currency,before,after,delta,asOf:d.asOf,note:txn.note});
+  }
+  a.balance=after;a.asOf=d.asOf;save();closeModal();
+  toast(delta===0?"余额一致，已更新核对日期":"已保存校对差额 "+(delta>0?"+":"−")+cashValue(a.currency,Math.abs(delta)));
+ }
+}
 function openHolding(itemId){
  const x=wealthArray("holdings").find(x=>x.id===itemId)||{symbol:"",name:"",market:"US",assetType:"stock",currency:"USD",quantity:"",cost:"",price:"",asOf:localToday(),note:""};
  openModal(itemId?"编辑持仓":"新增股票持仓",'<form id="holdingForm" class="form-grid">'+
