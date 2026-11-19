@@ -415,6 +415,66 @@ function renderPortfolio(){
  $("holdingsCards").innerHTML=hs.length?hs.map(h=>{const p=holdingMarket(h),delta=p-holdingCost(h),pct=holdingCost(h)>0?delta/holdingCost(h)*100:null;return '<div class="wealth-card"><div class="row"><b>'+esc(h.symbol)+'</b><span class="tag">'+esc(h.market)+" · "+esc(h.assetType||"stock")+'</span></div><div class="section-sub">'+esc(h.name||"未填写名称")+'</div><div class="wealth-amount">'+cashValue(h.currency,p)+'</div><div class="wealth-foot">'+esc(h.quantity)+" 股/份 · 成本 "+cashValue(h.currency,h.cost)+" · 估值 "+cashValue(h.currency,h.price)+" · "+esc(h.asOf||"无估值日期")+'</div><div class="'+(delta>=0?"positive":"negative")+'">未实现 '+(delta>=0?"+":"−")+cashValue(h.currency,Math.abs(delta))+(pct===null?"":" ("+pct.toFixed(2)+"%)")+'</div>'+wealthItemActions("holding",h)+'</div>'}).join(""):emptyCard("暂未录入美股或新加坡股。点击「新增持仓」开始，基金保持空白。")
 }
 
+
+function openGoal(itemId){
+ const g=wealthArray("financialGoals").find(x=>x.id===itemId)||{name:"",currency:"SGD",target:"",reserved:"",due:today(),note:""};
+ openModal(itemId?"编辑财务目标":"添加财务目标",'<form id="goalForm" class="form-grid">'+
+ '<label class="wide"><span class="field-label">目标名称</span><input name="name" required maxlength="80" class="field" value="'+esc(g.name)+'" placeholder="如：未来装修资金"></label>'+
+ '<label><span class="field-label">目标币种</span><select name="currency" class="field">'+opts(["SGD","CNY","USD"],g.currency)+'</select></label>'+
+ '<label><span class="field-label">目标日期</span><input name="due" type="date" required class="field" value="'+esc(g.due)+'"></label>'+
+ '<label><span class="field-label">目标金额</span><input name="target" type="number" min="0.01" step="any" required class="field" value="'+esc(g.target)+'"></label>'+
+ '<label><span class="field-label">已专门预留金额</span><input name="reserved" type="number" min="0" step="any" required class="field" value="'+esc(g.reserved)+'"></label>'+
+ '<label class="wide"><span class="field-label">备注 / 预留资金来源</span><input name="note" class="field" maxlength="150" value="'+esc(g.note||"")+'"></label>'+
+ '<div class="wide note">已预留金额由你确认填写，不能把同一笔资金重复分配给多个目标；这里只做目标计划，不自动扣减账户余额。</div><button class="btn primary wide">保存目标</button></form>');
+ $("goalForm").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(!Number.isFinite(Number(d.target))||Number(d.target)<=0||!numValid(d.reserved)||!validISO(d.due)){toast("目标金额、预留金额或日期无效");return}const x={...d,target:Number(d.target),reserved:Number(d.reserved),id:itemId||id()};db.financialGoals=wealthArray("financialGoals");const i=db.financialGoals.findIndex(a=>a.id===itemId);if(i>=0)db.financialGoals[i]=x;else db.financialGoals.push(x);save();closeModal()}
+}
+function openPayment(itemId){
+ const p=wealthArray("futurePayments").find(x=>x.id===itemId)||{name:"",currency:"SGD",amount:"",direction:"expense",due:today(),note:""};
+ openModal(itemId?"编辑预计收支":"规划未来收支",'<form id="paymentForm" class="form-grid">'+
+ '<label class="wide"><span class="field-label">项目</span><input name="name" required maxlength="80" class="field" value="'+esc(p.name)+'" placeholder="如：年度保险费"></label>'+
+ '<label><span class="field-label">方向</span><select name="direction" class="field">'+opts(["expense","income"],p.direction)+'</select></label>'+
+ '<label><span class="field-label">币种</span><select name="currency" class="field">'+opts(["SGD","CNY","USD"],p.currency)+'</select></label>'+
+ '<label><span class="field-label">预计金额</span><input name="amount" class="field" required type="number" min="0.01" step="any" value="'+esc(p.amount)+'"></label>'+
+ '<label><span class="field-label">预计日期</span><input name="due" class="field" required type="date" value="'+esc(p.due)+'"></label>'+
+ '<label class="wide"><span class="field-label">备注</span><input class="field" maxlength="150" name="note" value="'+esc(p.note||"")+'"></label>'+
+ '<div class="wide note">此处是财务计划，不是正式收支，不会自动计入账本，也不会改变资产余额。</div><button class="btn primary wide">保存计划</button></form>');
+ $("paymentForm").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(!Number.isFinite(Number(d.amount))||Number(d.amount)<=0||!validISO(d.due)){toast("预计金额或日期无效");return}const x={...d,amount:Number(d.amount),id:itemId||id()};db.futurePayments=wealthArray("futurePayments");const i=db.futurePayments.findIndex(a=>a.id===itemId);if(i>=0)db.futurePayments[i]=x;else db.futurePayments.push(x);save();closeModal()}
+}
+function renderPlanning(){
+ const goals=wealthArray("financialGoals"),payments=wealthArray("futurePayments");
+ $("goalCards").innerHTML=goals.length?goals.map(g=>'<div class="wealth-card"><b>'+esc(g.name)+'</b><div class="wealth-amount">'+cashValue(g.currency,g.reserved)+' / '+cashValue(g.currency,g.target)+'</div><div class="track"><div class="fill" style="width:'+Math.min(100,g.target>0?g.reserved/g.target*100:0)+'%"></div></div><div class="wealth-foot">缺口 '+cashValue(g.currency,Math.max(0,g.target-g.reserved))+' · 目标 '+esc(g.due)+'</div>'+wealthItemActions("goal",g)+'</div>').join(""):emptyCard("还没有财务目标，例如装修准备金、应急储备、旅行或长期投资资金。");
+ const start=today(),end=new Date();end.setMonth(end.getMonth()+12);const endDay=end.getFullYear()+"-"+String(end.getMonth()+1).padStart(2,"0")+"-"+String(end.getDate()).padStart(2,"0");
+ const future=payments.filter(p=>p.due>=start&&p.due<=endDay).sort((a,b)=>a.due.localeCompare(b.due)),totals={};
+ for(const p of future){const key=p.currency;totals[key]=(totals[key]||0)+(p.direction==="income"?1:-1)*p.amount}
+ $("paymentSummary").textContent=future.length+" 项未来12个月计划 · "+(Object.entries(totals).map(([c,v])=>(v>=0?"+":"−")+cashValue(c,Math.abs(v))).join(" / ")||"尚未安排");
+ $("paymentCards").innerHTML=payments.length?payments.slice().sort((a,b)=>a.due.localeCompare(b.due)).map(p=>'<div class="wealth-card"><div class="row"><b>'+esc(p.name)+'</b><span class="tag">'+(p.direction==="income"?"预计收入":"预计支出")+'</span></div><div class="wealth-amount">'+(p.direction==="income"?"+":"−")+cashValue(p.currency,p.amount)+'</div><div class="wealth-foot">预计日期 '+esc(p.due)+' · 不影响当前账面余额</div>'+wealthItemActions("payment",p)+'</div>').join(""):emptyCard("尚未添加预计收支。你可以只添加大额或固定的未来项目。")
+}
+function monthSummary(m,c){const ar=trs(m,c),a=amounts(ar);return {count:ar.length,income:a.income,expense:a.expense,net:a.income-a.expense}}
+function reportData(){
+ const w=wealthRollup(),m=today().slice(0,7),s=monthSummary(m,"SGD"),c=monthSummary(m,"CNY");
+ return {month:m,asOf:today(),cashAccounts:wealthArray("cashAccounts").length,holdings:wealthArray("holdings").length,liabilities:wealthArray("liabilities").length,netWorthSGD:w.total,missingFx:w.missing,fxRates:{...(db.fxRates||{})},sgd:s,cny:c,notes:"净资产是估值快照；月度结余来自已录入交易，不等于净资产变化或银行余额变动。"};
+}
+function renderReports(){
+ const r=reportData(),snapshots=wealthArray("wealthSnapshots").slice().sort((a,b)=>b.asOf.localeCompare(a.asOf));
+ $("reportArea").innerHTML='<div class="row"><div><div class="section-title">'+esc(monthLabel(r.month))+' · 财富复盘</div><div class="section-sub">截至 '+esc(r.asOf)+'，以你实际录入的数据为依据</div></div><span class="tag">未核对银行正式账单</span></div>'+
+ '<div class="wealth-home-grid" style="margin-top:18px"><div class="wealth-stat"><small>估算净资产（SGD）</small><b>'+esc(wealthMoney(r.netWorthSGD))+'</b><small>'+esc(r.missingFx.length?"缺少 "+r.missingFx.join("、")+" 汇率":"参考汇率 "+(r.fxRates.asOf||"未记录"))+'</small></div>'+
+ '<div class="wealth-stat"><small>新加坡 SGD 月度结余</small><b>'+cashValue("SGD",r.sgd.net)+'</b><small>'+r.sgd.count+' 笔已录入交易</small></div>'+
+ '<div class="wealth-stat"><small>中国 CNY 月度结余</small><b>'+cashValue("CNY",r.cny.net)+'</b><small>'+r.cny.count+' 笔已录入交易</small></div></div>'+
+ '<div class="note" style="margin-top:16px">月度结余仅包含已导入交易，不等于账户余额变化；净资产估值不代表可立即变现价值。确认快照是保存当前录入情况，不代表银行已完成对账。</div>'+
+ '<div class="toolbar"><button class="btn" onclick="go(\'wealth\')">更新银行余额 / 负债</button><button class="btn" onclick="go(\'portfolio\')">更新股票估值</button><button class="btn" onclick="go(\'import\')">导入银行账单</button></div>';
+ $("snapshotCards").innerHTML=snapshots.length?snapshots.map(x=>'<div class="wealth-card"><b>'+esc(x.month)+" · "+esc(x.asOf)+'</b><div class="wealth-amount">'+esc(x.netWorthSGD===null?"未完成汇率折算":cashValue("SGD",x.netWorthSGD))+'</div><div class="wealth-foot">现金 '+x.cashAccounts+' 个 · 持仓 '+x.holdings+' 项 · 负债 '+x.liabilities+' 项 · SGD 结余 '+cashValue("SGD",x.sgd?.net||0)+' · CNY 结余 '+cashValue("CNY",x.cny?.net||0)+'</div></div>').join(""):emptyCard("尚未保存任何财富快照。你可以每月整理后手动保存。")
+}
+function closeWealthMonth(){
+ const r=reportData();
+ if(!wealthEntries().length){toast("请先录入至少一个资产或负债余额，再创建快照");return}
+ if(!confirm("保存 "+monthLabel(r.month)+" 截至 "+r.asOf+" 的资产快照？这不是银行已对账确认，金额取自当前手动记录。"))return;
+ db.wealthSnapshots=wealthArray("wealthSnapshots");db.wealthSnapshots.push({...r,id:id(),savedAt:new Date().toISOString()});save();toast("财富快照已保存");
+}
+function exportWealthReport(){
+ const r=reportData(),snapshots=wealthArray("wealthSnapshots");const contents={format:"chengli-wealth-review-v1",current:r,history:snapshots};
+ const blob=new Blob([JSON.stringify(contents,null,2)],{type:"application/json;charset=utf-8"});download(blob,"chengli-wealth-review-"+r.month+".json");toast("财富复盘数据已导出");
+}
+
 function setCurrency(next){if(next!=="SGD"&&next!=="CNY")return;currency=next;document.querySelectorAll(".currency-option").forEach(btn=>{const active=btn.dataset.currency===next;btn.classList.toggle("active",active);btn.setAttribute("aria-pressed",String(active))});render()}
 window.addEventListener("scroll",()=>{$("scrollTop").style.display=scrollY>350?"block":"none"});
 navInit();render();cloudStartup();if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
