@@ -30,3 +30,22 @@ date,description,amount,type,currency
 2026-11-19,7-ELEVEN,3.20,expense,SGD
 2026-11-19,午餐,35,expense,CNY
 ```
+
+
+## Cloudflare Worker 同步（v1.1）
+已在 Cloudflare 创建并部署 `wealth-management-api`，API 地址为：
+`https://wealth-management-api.wangtszshan.workers.dev`
+
+Worker 采用应用密码登录（会话默认有效期 30 天），云端 AES-256-GCM 加密后写入私人 GitHub 仓库。网页缓存登录会话，不需要在浏览器输入 GitHub Token。**本地 localStorage 仍未加密。** 云端加密密钥仅保留在 Worker Secret；务必做好该密钥的安全备份和灾难恢复计划。
+
+需要在 Cloudflare Dashboard → Workers & Pages → wealth-management-api → Settings → Variables and Secrets 中增加以下两个 Secret：
+- `GITHUB_TOKEN`：Fine-grained PAT，限制到私库 `wongtszshan/Wealth-Management-data`，Contents: Read and Write。
+- `APP_PASSWORD`：用于网页 App 首次登录的强独立密码。
+
+另两个 Secret `SESSION_SECRET` 和 `DATA_ENCRYPTION_KEY` 已自动安全生成，**不要随意重置 DATA_ENCRYPTION_KEY，否则将无法解密已有数据**。
+
+在这两个必需 Secret 配置齐全前，Worker 会返回 HTTP 503，云端功能不可用，本地记账不受影响。
+
+同步防护：使用 GitHub content SHA 检查版本，冲突时停止覆盖；新设备本地已有记录且云端不同也会先提示。当前仍不具备自动数据合并功能。登录会话保存在浏览器 localStorage，建议仅在本人可信设备上使用。
+
+警告：请勿在 GitHub 公开仓库、聊天对话或截图中公布密钥 / Token。后续应增加密码尝试频率限制、会话撤销与设备管理。
