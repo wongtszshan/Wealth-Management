@@ -308,6 +308,113 @@ async function syncPull(force=false){if(!session)return;const state=$("syncState
 async function syncPush(){if(!session){toast("请先登录云端");return}if(!cloudReady){toast("请先完成云端版本核对");return}if(syncBusy){cloudDirty=true;return}const state=$("syncState");syncBusy=true;state.textContent="正在加密上传云端…";try{const x=await cloudRequest("/api/finance","PUT",{data:db,version:cloudVersion});cloudVersion=x.version;cloudDirty=false;state.textContent="已加密同步 · "+new Date().toLocaleString("zh-CN")}catch(e){cloudDirty=true;cloudReady=false;state.textContent="同步暂停："+e.message+"。请先核对云端账本以防覆盖。"}finally{syncBusy=false}}
 function scheduleCloudSync(){if(!session||!cloudReady)return;cloudDirty=true;clearTimeout(syncTimer);syncTimer=setTimeout(()=>{if(cloudDirty)syncPush()},1600)}
 function cloudStartup(){renderCloudState();if(session)syncPull(false)}
+
+/* Wealth management v2: stored separately from legacy transaction/accounts records */
+function wealthArray(k){return Array.isArray(db[k])?db[k]:[]}
+function fmtNumber(v){return Number(v).toLocaleString("en-SG",{minimumFractionDigits:2,maximumFractionDigits:2})}
+function cashValue(c,v){return (c==="USD"?"US$":c==="CNY"?"¥":"S$")+fmtNumber(v)}
+function localToday(){return today()}
+function numValid(v){return v!==""&&v!==null&&v!==undefined&&Number.isFinite(Number(v))&&Number(v)>=0}
+function validISO(v){return /^\d{4}-\d{2}-\d{2}$/.test(String(v||""))&&!Number.isNaN(Date.parse(v+"T00:00:00"))}
+function emptyCard(text){return '<div class="wealth-card"><div class="section-sub">'+esc(text)+'</div></div>'}
+function holdingMarket(h){return Number(h.quantity||0)*Number(h.price||0)}
+function holdingCost(h){return Number(h.quantity||0)*Number(h.cost||0)}
+function wealthEntries(){
+ const a=[];
+ for(const x of wealthArray("cashAccounts"))if(numValid(x.balance))a.push({currency:x.currency,amount:Number(x.balance),group:"cash"});
+ for(const x of wealthArray("holdings"))if(numValid(x.quantity)&&numValid(x.price))a.push({currency:x.currency,amount:holdingMarket(x),group:"stocks"});
+ for(const x of wealthArray("liabilities"))if(numValid(x.balance))a.push({currency:x.currency,amount:-Number(x.balance),group:"debt"});
+ return a
+}
+function rates(){const o=db.fxRates||{};return {CNY:Number(o.CNY),USD:Number(o.USD)}}
+function convertSGD(v,c){if(c==="SGD")return Number(v);const rate=rates()[c];return Number.isFinite(rate)&&rate>0?Number(v)*rate:null}
+function wealthRollup(){
+ const rows=wealthEntries(),by={SGD:0,CNY:0,USD:0},byAsset={cash:0,stocks:0,debt:0},missing=[];
+ let sum=0;
+ for(const r of rows){
+  by[r.currency]=(by[r.currency]||0)+r.amount;
+  const converted=convertSGD(r.amount,r.currency);
+  if(converted===null){if(Math.abs(r.amount)>0&&!missing.includes(r.currency))missing.push(r.currency)}
+  else{sum+=converted;byAsset[r.group]+=converted}
+ }
+ return {rows,by,byAsset,missing,total:missing.length?null:sum}
+}
+function wealthMoney(v){return v===null?"待设置汇率":cashValue("SGD",v)}
+function renderWealthHome(){
+ const w=wealthRollup(),any=w.rows.length>0;
+ const coverage=wealthArray("cashAccounts").length+" 个现金账户 · "+wealthArray("holdings").length+" 项持仓 · "+wealthArray("liabilities").length+" 项负债";
+ const cashCount=wealthArray("cashAccounts").filter(x=>numValid(x.balance)).length;
+ $("wealthHome").innerHTML='<div class="wealth-home"><div class="wealth-hero"><div class="eyebrow" style="color:#b8d9d0">PERSONAL NET WORTH</div><div class="section-sub">估算净资产（统一折算 SGD）</div><h2>'+(any?esc(wealthMoney(w.total)):"尚未录入资产")+'</h2><div class="hint">'+esc(w.missing.length?"需补充 "+w.missing.join("、")+" 兑 SGD 的汇率，才能计算跨币种合计":coverage+" · 估值并非银行实时余额")+'</div><div class="toolbar"><button class="btn" onclick="go(\'wealth\')">管理资产与负债 ↗</button><button class="btn" onclick="go(\'reports\')">查看财富报告 ↗</button></div></div><div class="wealth-home-grid">'+
+ [["银行现金账户",cashCount+" 个","需要手动更新余额"],["股票持仓",wealthArray("holdings").length+" 项","USD / SGD 手动估值"],["未偿负债",wealthArray("liabilities").length+" 项","从净资产中扣除"]].map(x=>'<div class="wealth-stat"><small>'+x[0]+'</small><b>'+x[1]+'</b><small>'+x[2]+'</small></div>').join("")+'</div></div>';
+}
+function cashFormTitle(x){return x?"编辑现金账户":"新增现金账户"}
+function openCash(itemId){
+ const x=wealthArray("cashAccounts").find(x=>x.id===itemId)||{name:"",country:currency==="SGD"?"SG":"CN",currency:currency==="SGD"?"SGD":"CNY",balance:"",asOf:localToday(),note:""};
+ openModal(cashFormTitle(itemId),'<form id="cashForm" class="form-grid">'+
+ '<label class="wide"><span class="field-label">账户昵称</span><input class="field" name="name" required maxlength="80" value="'+esc(x.name)+'" placeholder="例如：OCBC 储蓄账户"></label>'+
+ '<label><span class="field-label">所在地区</span><select class="field" name="country">'+opts(["SG","CN","OTHER"],x.country)+'</select></label>'+
+ '<label><span class="field-label">币种</span><select class="field" name="currency">'+opts(["SGD","CNY","USD"],x.currency)+'</select></label>'+
+ '<label><span class="field-label">当前记录余额</span><input class="field" type="number" required min="0" step="0.01" name="balance" value="'+esc(x.balance)+'" placeholder="银行显示的余额"></label>'+
+ '<label><span class="field-label">余额截至日期</span><input class="field" type="date" required name="asOf" value="'+esc(x.asOf||localToday())+'"></label>'+
+ '<label class="wide"><span class="field-label">备注（可选）</span><input class="field" name="note" maxlength="150" value="'+esc(x.note||"")+'"></label>'+
+ '<div class="wide note">请填写银行当前实际余额；这里不会从消费流水重复加减，也不保存完整银行卡号。</div><button class="btn primary wide">保存余额记录</button></form>');
+ $("cashForm").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(!numValid(d.balance)||!validISO(d.asOf)){toast("请填写有效余额和日期");return}const record={...d,balance:Number(d.balance),id:itemId||id()};db.cashAccounts=wealthArray("cashAccounts");const index=db.cashAccounts.findIndex(a=>a.id===itemId);if(index>=0)db.cashAccounts[index]=record;else db.cashAccounts.push(record);save();closeModal();toast("现金余额已保存")}
+}
+function openHolding(itemId){
+ const x=wealthArray("holdings").find(x=>x.id===itemId)||{symbol:"",name:"",market:"US",assetType:"stock",currency:"USD",quantity:"",cost:"",price:"",asOf:localToday(),note:""};
+ openModal(itemId?"编辑持仓":"新增股票持仓",'<form id="holdingForm" class="form-grid">'+
+ '<label><span class="field-label">股票代码</span><input class="field" name="symbol" required maxlength="24" value="'+esc(x.symbol)+'" placeholder="如：AAPL"></label>'+
+ '<label><span class="field-label">股票名称</span><input class="field" name="name" maxlength="80" value="'+esc(x.name)+'"></label>'+
+ '<label><span class="field-label">证券市场</span><select class="field" name="market" id="holdingMarket" onchange="document.getElementById(\'holdingCurrency\').value=this.value===\'SG\'?\'SGD\':\'USD\'">'+opts(["US","SG"],x.market)+'</select></label>'+
+ '<label><span class="field-label">证券类型</span><select class="field" name="assetType">'+opts(["stock","etf","fund"],x.assetType||"stock")+'</select></label>'+
+ '<label><span class="field-label">持有股数 / 份额</span><input class="field" type="number" required min="0" step="any" name="quantity" value="'+esc(x.quantity)+'"></label>'+
+ '<label><span class="field-label">单份成本（同币种）</span><input class="field" type="number" required min="0" step="any" name="cost" value="'+esc(x.cost)+'"></label>'+
+ '<label><span class="field-label">单份当前估值</span><input class="field" type="number" required min="0" step="any" name="price" value="'+esc(x.price)+'"></label>'+
+ '<label><span class="field-label">估值截至日期</span><input class="field" type="date" required name="asOf" value="'+esc(x.asOf||localToday())+'"></label>'+
+ '<label><span class="field-label">估值币种</span><select class="field" name="currency" id="holdingCurrency">'+opts(["USD","SGD"],x.currency)+'</select></label>'+
+ '<label><span class="field-label">备注 / 券商昵称</span><input class="field" name="note" maxlength="150" value="'+esc(x.note||"")+'"></label>'+
+ '<div class="wide note">成本与现价为每股/每份价格。没有行情连接时请自行更新；ETF、基金只是可选类型，不会自动创建任何持仓。</div><button class="btn primary wide">保存持仓</button></form>');
+ $("holdingForm").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(["quantity","cost","price"].some(k=>!numValid(d[k]))||!validISO(d.asOf)){toast("请填写有效持仓数量、价格和日期");return}const record={...d,quantity:Number(d.quantity),cost:Number(d.cost),price:Number(d.price),symbol:d.symbol.trim().toUpperCase(),id:itemId||id()};db.holdings=wealthArray("holdings");const i=db.holdings.findIndex(x=>x.id===itemId);if(i>=0)db.holdings[i]=record;else db.holdings.push(record);save();closeModal();toast("持仓已更新")}
+}
+function openLiability(itemId){
+ const x=wealthArray("liabilities").find(x=>x.id===itemId)||{name:"",type:"credit",currency:currency==="CNY"?"CNY":"SGD",balance:"",asOf:localToday(),note:""};
+ openModal(itemId?"编辑负债":"新增负债",'<form id="liabilityForm" class="form-grid">'+
+ '<label class="wide"><span class="field-label">负债名称</span><input class="field" required name="name" maxlength="80" value="'+esc(x.name)+'" placeholder="例如：信用卡待还余额"></label>'+
+ '<label><span class="field-label">类型</span><select class="field" name="type">'+opts(["credit","mortgage","loan","other"],x.type)+'</select></label>'+
+ '<label><span class="field-label">币种</span><select class="field" name="currency">'+opts(["SGD","CNY","USD"],x.currency)+'</select></label>'+
+ '<label><span class="field-label">未偿余额</span><input class="field" type="number" min="0" step="0.01" required name="balance" value="'+esc(x.balance)+'"></label>'+
+ '<label><span class="field-label">截至日期</span><input class="field" type="date" name="asOf" required value="'+esc(x.asOf||localToday())+'"></label>'+
+ '<label class="wide"><span class="field-label">备注</span><input class="field" name="note" maxlength="150" value="'+esc(x.note||"")+'"></label><button class="btn primary wide">保存负债</button></form>');
+ $("liabilityForm").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(!numValid(d.balance)||!validISO(d.asOf)){toast("请输入有效负债和日期");return}const record={...d,balance:Number(d.balance),id:itemId||id()};db.liabilities=wealthArray("liabilities");const i=db.liabilities.findIndex(x=>x.id===itemId);if(i>=0)db.liabilities[i]=record;else db.liabilities.push(record);save();closeModal()}
+}
+function openFx(){
+ const x=db.fxRates||{};
+ openModal("设置估算折算汇率",'<form id="fxForm" class="form-grid">'+
+ '<div class="wide note">汇率统一按「1 单位外币 = 多少 SGD」填写。例如填写实际查询到的当日参考汇率。不预设、不联网猜测汇率。</div>'+
+ '<label><span class="field-label">1 CNY = ? SGD</span><input name="CNY" class="field" type="number" min="0.000001" max="1000" step="any" placeholder="按需输入" value="'+esc(x.CNY||"")+'"></label>'+
+ '<label><span class="field-label">1 USD = ? SGD</span><input name="USD" class="field" type="number" min="0.000001" max="1000" step="any" placeholder="按需输入" value="'+esc(x.USD||"")+'"></label>'+
+ '<label class="wide"><span class="field-label">汇率日期</span><input name="asOf" class="field" type="date" value="'+esc(x.asOf||today())+'"></label>'+
+ '<button class="btn primary wide">保存参考汇率</button></form>');
+ $("fxForm").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));for(const k of ["CNY","USD"])if(d[k]!==""&&(!Number.isFinite(Number(d[k]))||Number(d[k])<=0)){toast("汇率必须大于零");return}if(!validISO(d.asOf)){toast("日期无效");return}db.fxRates={CNY:d.CNY?Number(d.CNY):null,USD:d.USD?Number(d.USD):null,asOf:d.asOf};save();closeModal()}
+}
+function deleteWealthRecord(kind,x){const map={cash:"cashAccounts",holding:"holdings",liability:"liabilities",goal:"financialGoals",payment:"futurePayments"};const k=map[kind];if(!k)return;if(!confirm("确认删除这条记录？历史月度快照不会被修改。"))return;db[k]=wealthArray(k).filter(v=>v.id!==x);save()}
+function wealthItemActions(kind,x){return '<div class="wealth-actions"><button class="btn small" onclick="'+({cash:"openCash",holding:"openHolding",liability:"openLiability",goal:"openGoal",payment:"openPayment"}[kind])+'(\''+esc(x.id)+'\')">编辑</button><button class="btn small ghost" onclick="deleteWealthRecord(\''+kind+'\',\''+esc(x.id)+'\')">删除</button></div>'}
+function renderWealth(){
+ const w=wealthRollup();
+ $("wealthTotals").innerHTML=[["资产总额",w.missing.length?"汇率待补":cashValue("SGD",w.byAsset.cash+w.byAsset.stocks),"现金 + 股票"],["负债总额",w.missing.length?"汇率待补":cashValue("SGD",w.byAsset.debt*-1),"未偿余额"],["估算净资产",wealthMoney(w.total),"资产 − 负债"],["录入覆盖",w.rows.length+" 项","以最后录入的快照为准"]].map(([k,v,t],i)=>'<div class="card stat '+(i===2?"hero":"")+'"><div class="label">'+k+'</div><div class="value" style="font-size:clamp(17px,2.2vw,25px)">'+esc(v)+'</div><div class="meta">'+esc(t)+'</div></div>').join("");
+ const ratesNow=rates();$("fxSummary").textContent="CNY→SGD："+(ratesNow.CNY>0?ratesNow.CNY:"未设置")+" · USD→SGD："+(ratesNow.USD>0?ratesNow.USD:"未设置")+" · 汇率日期："+(db.fxRates?.asOf||"未记录");
+ const ca=wealthArray("cashAccounts");
+ $("cashCards").innerHTML=ca.length?ca.map(x=>'<div class="wealth-card"><b>'+esc(x.name)+'</b><div class="wealth-amount">'+cashValue(x.currency,x.balance)+'</div><div class="wealth-foot">'+esc(x.country)+" · "+esc(x.currency)+" · 截至 "+esc(x.asOf||"未标注")+'</div>'+wealthItemActions("cash",x)+'</div>').join(""):emptyCard("尚未录入现金账户。可以先增加中国和新加坡的银行账户及余额。");
+ const li=wealthArray("liabilities");
+ $("liabilityCards").innerHTML=li.length?li.map(x=>'<div class="wealth-card"><b>'+esc(x.name)+'</b><div class="wealth-amount">'+cashValue(x.currency,x.balance)+'</div><div class="wealth-foot">'+esc(x.type||"")+" · 截至 "+esc(x.asOf||"未标注")+'</div>'+wealthItemActions("liability",x)+'</div>').join(""):emptyCard("还没有录入负债。没有负债时可以保持空白。")
+}
+function renderPortfolio(){
+ const hs=wealthArray("holdings"),by={USD:0,SGD:0},cost={USD:0,SGD:0};
+ for(const h of hs){by[h.currency]=(by[h.currency]||0)+holdingMarket(h);cost[h.currency]=(cost[h.currency]||0)+holdingCost(h)}
+ $("portfolioTotals").innerHTML=[["美股市值",cashValue("USD",by.USD||0),"按最新手动估值"],["新加坡股市值",cashValue("SGD",by.SGD||0),"按最新手动估值"],["持仓数量",hs.length+" 项","基金不预设"],["未实现盈亏","按持仓单独计算","未计税费和分红"]].map(([a,b,c])=>'<div class="card stat"><div class="label">'+a+'</div><div class="value" style="font-size:clamp(17px,2.2vw,25px)">'+esc(b)+'</div><div class="meta">'+c+'</div></div>').join("");
+ $("holdingsCards").innerHTML=hs.length?hs.map(h=>{const p=holdingMarket(h),delta=p-holdingCost(h),pct=holdingCost(h)>0?delta/holdingCost(h)*100:null;return '<div class="wealth-card"><div class="row"><b>'+esc(h.symbol)+'</b><span class="tag">'+esc(h.market)+" · "+esc(h.assetType||"stock")+'</span></div><div class="section-sub">'+esc(h.name||"未填写名称")+'</div><div class="wealth-amount">'+cashValue(h.currency,p)+'</div><div class="wealth-foot">'+esc(h.quantity)+" 股/份 · 成本 "+cashValue(h.currency,h.cost)+" · 估值 "+cashValue(h.currency,h.price)+" · "+esc(h.asOf||"无估值日期")+'</div><div class="'+(delta>=0?"positive":"negative")+'">未实现 '+(delta>=0?"+":"−")+cashValue(h.currency,Math.abs(delta))+(pct===null?"":" ("+pct.toFixed(2)+"%)")+'</div>'+wealthItemActions("holding",h)+'</div>'}).join(""):emptyCard("暂未录入美股或新加坡股。点击「新增持仓」开始，基金保持空白。")
+}
+
 function setCurrency(next){if(next!=="SGD"&&next!=="CNY")return;currency=next;document.querySelectorAll(".currency-option").forEach(btn=>{const active=btn.dataset.currency===next;btn.classList.toggle("active",active);btn.setAttribute("aria-pressed",String(active))});render()}
 window.addEventListener("scroll",()=>{$("scrollTop").style.display=scrollY>350?"block":"none"});
 navInit();render();cloudStartup();if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
