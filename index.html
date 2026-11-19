@@ -708,12 +708,25 @@ function renderWealth(){
  $("liabilityCards").innerHTML=li.length?li.map(x=>'<div class="wealth-card"><b>'+esc(x.name)+'</b><div class="wealth-amount">'+cashValue(x.currency,x.balance)+'</div><div class="wealth-foot">'+esc(x.type||"")+" · 截至 "+esc(x.asOf||"未标注")+'</div>'+(x.repaymentAccountId?'<div class="wealth-foot">扣款账户：'+esc(wealthArray("cashAccounts").find(a=>a.id===x.repaymentAccountId)?.name||"原账户已移除")+'</div>':'')+wealthItemActions("liability",x)+(x.name.includes("观山海")||x.type==="mortgage"?'<div class="wealth-actions"><button class="btn small primary" onclick="openLoanRepayment(\''+esc(x.id)+'\')">关联兴业扣款 / 核对还款</button></div><div class="wealth-foot">已确认还款 '+loanPaymentsFor(x).length+' 笔 · 待核对交易 '+loanCandidates(x).filter(t=>t.accountId===x.repaymentAccountId&&x.repaymentAccountId).length+' 笔</div>':'')+'</div>').join(""):emptyCard("还没有录入负债。没有负债时可以保持空白。")
 }
 function renderPortfolio(){
- const hs=wealthArray("holdings"),by={USD:0,SGD:0},cost={USD:0,SGD:0};
- for(const h of hs){by[h.currency]=(by[h.currency]||0)+holdingMarket(h);cost[h.currency]=(cost[h.currency]||0)+holdingCost(h)}
- $("portfolioTotals").innerHTML=[["美股市值",cashValue("USD",by.USD||0),"按最新手动估值"],["新加坡股市值",cashValue("SGD",by.SGD||0),"按最新手动估值"],["持仓数量",hs.length+" 项","基金不预设"],["未实现盈亏","按持仓单独计算","未计税费和分红"]].map(([a,b,c])=>'<div class="card stat"><div class="label">'+a+'</div><div class="value" style="font-size:clamp(17px,2.2vw,25px)">'+esc(b)+'</div><div class="meta">'+c+'</div></div>').join("");
- $("holdingsCards").innerHTML=hs.length?hs.map(h=>{const p=holdingMarket(h),delta=p-holdingCost(h),pct=holdingCost(h)>0?delta/holdingCost(h)*100:null;return '<div class="wealth-card"><div class="row"><b>'+esc(h.symbol)+'</b><span class="tag">'+esc(h.market)+" · "+esc(h.assetType||"stock")+'</span></div><div class="section-sub">'+esc(h.name||"未填写名称")+'</div><div class="wealth-amount">'+cashValue(h.currency,p)+'</div><div class="wealth-foot">'+esc(h.quantity)+" 股/份 · 成本 "+cashValue(h.currency,h.cost)+" · 估值 "+cashValue(h.currency,h.price)+" · "+esc(h.asOf||"无估值日期")+'</div><div class="'+(delta>=0?"positive":"negative")+'">未实现 '+(delta>=0?"+":"−")+cashValue(h.currency,Math.abs(delta))+(pct===null?"":" ("+pct.toFixed(2)+"%)")+'</div>'+wealthItemActions("holding",h)+'</div>'}).join(""):emptyCard("暂未录入美股或新加坡股。点击「新增持仓」开始，基金保持空白。")
+ const hs=wealthArray("holdings"),trades=wealthArray("investmentTrades"),by={USD:0,SGD:0},realized={USD:0,SGD:0},dividends={USD:0,SGD:0};
+ for(const h of hs){const p=investmentPosition(h);if(p.invalid)continue;by[h.currency]=(by[h.currency]||0)+p.quantity*Number(h.price||0);realized[h.currency]=(realized[h.currency]||0)+p.realized;dividends[h.currency]=(dividends[h.currency]||0)+p.dividends}
+ $("portfolioTotals").innerHTML=[["美股当前市值",cashValue("USD",by.USD),"手动最新估值"],["新加坡股当前市值",cashValue("SGD",by.SGD),"手动最新估值"],["持仓品种",hs.filter(h=>investmentPosition(h).quantity>1e-8).length+" 项","累计 "+trades.length+" 条交易"],["已实现盈亏",cashValue("USD",realized.USD)+" / "+cashValue("SGD",realized.SGD),"不含分红；两币种不相加"]].map(([a,b,c])=>'<div class="card stat"><div class="label">'+esc(a)+'</div><div class="value" style="font-size:clamp(16px,2vw,24px);overflow-wrap:anywhere">'+esc(b)+'</div><div class="meta">'+esc(c)+'</div></div>').join("");
+ $("holdingsCards").innerHTML=hs.length?hs.map(h=>{
+  const p=investmentPosition(h);if(p.invalid)return '<div class="wealth-card"><b>'+esc(h.symbol)+'</b><div class="note warning">'+esc(p.invalid)+'</div></div>';
+  const val=p.quantity*Number(h.price||0),change=p.unrealized,pct=p.bookCost>0?change/p.bookCost*100:null;
+  return '<div class="wealth-card"><div class="row"><b>'+esc(h.symbol)+'</b><span class="tag">'+esc(h.market)+' · '+esc(h.assetType||"stock")+'</span></div>'+
+  '<div class="section-sub">'+esc(h.name||"未填写名称")+'</div><div class="wealth-amount">'+cashValue(h.currency,val)+'</div>'+
+  '<div class="wealth-foot">现持 '+Number(p.quantity.toFixed(8))+' 股/份 · 移动平均成本 '+cashValue(h.currency,p.averageCost)+' · 最新单价 '+cashValue(h.currency,h.price)+' · '+esc(h.asOf||"未标记估值日")+'</div>'+
+  '<div class="'+(change>=0?"positive":"negative")+'">未实现 '+(change>=0?"+":"−")+cashValue(h.currency,Math.abs(change))+(pct===null?"":" ("+pct.toFixed(2)+"%)")+'</div>'+
+  '<div class="wealth-foot">已实现 '+cashValue(h.currency,p.realized)+' · 累计分红 '+cashValue(h.currency,p.dividends)+' · 已记录手续费 '+cashValue(h.currency,p.fees)+'</div>'+
+  '<div class="wealth-actions"><button class="btn small primary" onclick="openInvestmentTrade(\''+esc(h.id)+'\',\'buy\')">买入</button><button class="btn small" onclick="openInvestmentTrade(\''+esc(h.id)+'\',\'sell\')">卖出</button><button class="btn small" onclick="openInvestmentTrade(\''+esc(h.id)+'\',\'dividend\')">分红</button><button class="btn small" onclick="openHoldingPrice(\''+esc(h.id)+'\')">更新价格</button></div>'+
+  '<div class="wealth-actions"><button class="btn small ghost" onclick="openHolding(\''+esc(h.id)+'\')">编辑起始持仓</button><button class="btn small ghost" onclick="deleteWealthRecord(\'holding\',\''+esc(h.id)+'\')">删除</button></div></div>'
+ }).join(""):emptyCard("尚未创建持仓。第一次建档填写当前数量及平均成本，以后的交易请使用买入和卖出。");
+ $("investmentTradesList").innerHTML=trades.length?trades.slice().sort((a,b)=>b.date.localeCompare(a.date)||(b.createdAt||"").localeCompare(a.createdAt||"")).map(t=>{
+  const h=hs.find(x=>x.id===t.holdingId),curr=h?.currency||t.currency||"USD",label=t.type==="buy"?"买入":t.type==="sell"?"卖出":"分红";
+  return '<div class="investment-trade-card"><div><div class="row"><b>'+esc(h?.symbol||"已移除持仓")+' · '+label+'</b><span class="mini">'+esc(t.date)+'</span></div><div class="section-sub">'+(t.type==="dividend"?"收到分红 "+cashValue(curr,t.amount):Number(t.quantity)+" 股 × "+cashValue(curr,t.price)+" · 手续费 "+cashValue(curr,t.fee||0))+'</div>'+(t.note?'<div class="wealth-foot">'+esc(t.note)+'</div>':'')+'</div><button class="btn small ghost" onclick="removeInvestmentTrade(\''+esc(t.id)+'\')">撤销记录</button></div>'
+ }).join(""):'<div class="empty">还没有买卖记录。原有 MRVL、093 等持仓作为起始快照保留。</div>'
 }
-
 
 function openGoal(itemId){
  const g=wealthArray("financialGoals").find(x=>x.id===itemId)||{name:"",currency:"SGD",target:"",reserved:"",due:today(),note:""};
