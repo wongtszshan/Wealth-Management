@@ -544,13 +544,14 @@ function wealthEntries(){
  const a=[];
  for(const x of wealthArray("cashAccounts"))if(numValid(x.balance))a.push({currency:x.currency,amount:Number(x.balance),group:x.productType==="cash_management"?"cash_management":"cash"});
  for(const x of wealthArray("holdings"))if(numValid(x.quantity)&&numValid(x.price))a.push({currency:x.currency,amount:holdingMarket(x),group:"stocks"});
+ for(const account of wealthArray("brokerageAccounts"))for(const c of ["USD","SGD","CNY"])if(account.cashBalances?.[c]!==null&&account.cashBalances?.[c]!==undefined&&account.cashBalances[c]!==""&&numValid(account.cashBalances[c]))a.push({currency:c,amount:Number(account.cashBalances[c]),group:"brokerage_cash"});
  for(const x of wealthArray("liabilities"))if(numValid(x.balance))a.push({currency:x.currency,amount:-Number(x.balance),group:"debt"});
  return a
 }
 function rates(){const o=db.fxRates||{};return {CNY:Number(o.CNY),USD:Number(o.USD)}}
 function convertSGD(v,c){if(c==="SGD")return Number(v);const rate=rates()[c];return Number.isFinite(rate)&&rate>0?Number(v)*rate:null}
 function wealthRollup(){
- const rows=wealthEntries(),by={SGD:0,CNY:0,USD:0},byAsset={cash:0,cash_management:0,stocks:0,debt:0},missing=[];
+ const rows=wealthEntries(),by={SGD:0,CNY:0,USD:0},byAsset={cash:0,cash_management:0,brokerage_cash:0,stocks:0,debt:0},missing=[];
  let sum=0;
  for(const r of rows){
   by[r.currency]=(by[r.currency]||0)+r.amount;
@@ -618,6 +619,7 @@ function openHolding(itemId){
 
  const x=wealthArray("holdings").find(x=>x.id===itemId)||{symbol:"",name:"",market:"US",assetType:"stock",currency:"USD",quantity:"",cost:"",price:"",asOf:localToday(),note:""};
  openModal(itemId?"编辑持仓":"新增股票持仓",'<form id="holdingForm" class="form-grid">'+
+ '<label class="wide"><span class="field-label">所属券商账户</span><select class="field" name="brokerageAccountId">'+brokerAccounts().map(a=>'<option value="'+esc(a.id)+'" '+(a.id===(x.brokerageAccountId||brokerAccounts()[0].id)?"selected":"")+'>'+esc(a.name)+'</option>').join("")+'</select></label>'+
  '<label><span class="field-label">股票代码</span><input class="field" name="symbol" required maxlength="24" value="'+esc(x.symbol)+'" placeholder="如：AAPL"></label>'+
  '<label><span class="field-label">股票名称</span><input class="field" name="name" maxlength="80" value="'+esc(x.name)+'"></label>'+
  '<label><span class="field-label">证券市场</span><select class="field" name="market" id="holdingMarket" onchange="document.getElementById(\'holdingCurrency\').value=this.value===\'SG\'?\'SGD\':\'USD\'">'+opts(["US","SG"],x.market)+'</select></label>'+
@@ -780,7 +782,7 @@ function renderHealthMetrics(w){
  const valid=securities.every(x=>x.value!==null),holdTotal=valid?securities.reduce((n,x)=>n+x.value,0):0;
  const largest=holdTotal>0?securities.reduce((a,b)=>a.value>b.value?a:b):null;
  const concentration=!valid?"持仓币种缺参考汇率":largest?largest.label+" · "+(largest.value/holdTotal*100).toFixed(1)+"%":"尚无持仓";
- const assetBase=w.byAsset.cash+w.byAsset.cash_management+w.byAsset.stocks,liability=Math.abs(w.byAsset.debt);
+ const assetBase=w.byAsset.cash+w.byAsset.cash_management+w.byAsset.brokerage_cash+w.byAsset.stocks,liability=Math.abs(w.byAsset.debt);
  const leverage=w.missing.length?"缺少汇率":assetBase>0?(liability/assetBase*100).toFixed(1)+"%":"尚无可计算资产";
  $("healthMetrics").innerHTML=[["必要支出覆盖",cashRunway,"仅以已标记可动用的现金计算"],["最大单一持仓",concentration,"占已录入股票投资市值"],["负债 / 总资产",leverage,"以手动余额及估值计算"]].map(x=>'<div class="wealth-stat"><small>'+esc(x[0])+'</small><b style="font-size:clamp(14px,2vw,19px)">'+esc(x[1])+'</b><small>'+esc(x[2])+'</small></div>').join("")
 }
@@ -791,10 +793,10 @@ function setWealthUnit(unit){if(unit!=="SGD"&&unit!=="CNY")return;wealthDisplayU
 function cashAccountActions(x){const v=esc(x.id);return '<div class="cash-card-actions" role="group" aria-label="现金账户操作"><button class="btn small" onclick="openCash(\''+v+'\')">编辑</button><button class="btn small" onclick="openBalanceReconcile(\''+v+'\')">校对</button><button class="btn small" onclick="showAccountTransactions(\''+v+'\')">流水</button><button class="btn small ghost delete-action" onclick="deleteWealthRecord(\'cash\',\''+v+'\')">删除</button></div>'}
 function renderWealth(){
  const w=wealthRollup(),hasAssets=w.rows.length>0;
- $("wealthTotals").innerHTML=[["资产总额",w.missing.length?"汇率待补":showWealthTotal(w.byAsset.cash+w.byAsset.cash_management+w.byAsset.stocks),"银行现金 + 现金管理理财 + 股票"],["负债总额",w.missing.length?"汇率待补":showWealthTotal(Math.abs(w.byAsset.debt)),"未偿余额"],["估算净资产",hasAssets?showWealthTotal(w.total):"尚未录入","资产 − 负债"],["录入覆盖",w.rows.length+" 项","以最后录入的快照为准"]].map(([k,v,t],i)=>'<div class="card stat '+(i===2?"hero":"")+'"><div class="label">'+k+'</div><div class="value" style="font-size:clamp(17px,2.2vw,25px)">'+esc(v)+'</div><div class="meta">'+esc(t)+'</div></div>').join("");
+ $("wealthTotals").innerHTML=[["资产总额",w.missing.length?"汇率待补":showWealthTotal(w.byAsset.cash+w.byAsset.cash_management+w.byAsset.brokerage_cash+w.byAsset.stocks),"银行现金 + 理财 + 券商现金及股票"],["负债总额",w.missing.length?"汇率待补":showWealthTotal(Math.abs(w.byAsset.debt)),"未偿余额"],["估算净资产",hasAssets?showWealthTotal(w.total):"尚未录入","资产 − 负债"],["录入覆盖",w.rows.length+" 项","以最后录入的快照为准"]].map(([k,v,t],i)=>'<div class="card stat '+(i===2?"hero":"")+'"><div class="label">'+k+'</div><div class="value" style="font-size:clamp(17px,2.2vw,25px)">'+esc(v)+'</div><div class="meta">'+esc(t)+'</div></div>').join("");
  const ratesNow=rates();$("fxSummary").textContent="CNY→SGD："+(ratesNow.CNY>0?ratesNow.CNY:"未设置")+" · USD→SGD："+(ratesNow.USD>0?ratesNow.USD:"未设置")+" · 汇率日期："+(db.fxRates?.asOf||"未记录");
- const cash=w.byAsset.cash,managed=w.byAsset.cash_management,stocks=w.byAsset.stocks,denom=cash+managed+stocks;
- $("wealthComposition").innerHTML=w.missing.length?'<div class="note warning">需要先补充 '+esc(w.missing.join("、"))+' 的参考汇率，才能比较跨币种资产占比。</div>':(denom>0?'<div class="allocation-track"><div style="width:'+(cash/denom*100)+'%;background:#397f73"></div><div style="width:'+(managed/denom*100)+'%;background:#b99b5e"></div><div style="width:'+(stocks/denom*100)+'%;background:#8aafc0"></div></div><div class="row" style="margin-top:13px"><span>● 银行现金 '+(cash/denom*100).toFixed(1)+'%</span><span>● 现金管理理财 '+(managed/denom*100).toFixed(1)+'%</span><span>● 股票投资 '+(stocks/denom*100).toFixed(1)+'%</span></div>':'<div class="section-sub">录入现金或股票并设置所需汇率后，展示资产结构。</div>');
+ const cash=w.byAsset.cash,managed=w.byAsset.cash_management,brokerCash=w.byAsset.brokerage_cash,stocks=w.byAsset.stocks,denom=cash+managed+brokerCash+stocks;
+ $("wealthComposition").innerHTML=w.missing.length?'<div class="note warning">需要先补充 '+esc(w.missing.join("、"))+' 的参考汇率，才能比较跨币种资产占比。</div>':(denom>0?'<div class="allocation-track"><div style="width:'+(cash/denom*100)+'%;background:#397f73"></div><div style="width:'+(managed/denom*100)+'%;background:#b99b5e"></div><div style="width:'+((stocks+brokerCash)/denom*100)+'%;background:#8aafc0"></div></div><div class="row" style="margin-top:13px"><span>● 银行现金 '+(cash/denom*100).toFixed(1)+'%</span><span>● 现金管理理财 '+(managed/denom*100).toFixed(1)+'%</span><span>● 券商现金及股票 '+((stocks+brokerCash)/denom*100).toFixed(1)+'%</span></div>':'<div class="section-sub">录入现金或股票并设置所需汇率后，展示资产结构。</div>');
  renderHealthMetrics(w);
  const ca=wealthArray("cashAccounts").filter(x=>(x.productType||"bank")==="bank");
  $("cashCards").innerHTML=ca.length?ca.map(x=>'<div class="wealth-card"><b>'+esc(x.name)+'</b><div class="wealth-amount">'+cashValue(x.currency,x.balance)+'</div><div class="wealth-foot">'+esc(x.country)+" · "+esc(x.currency)+" · "+({available:"可动用",restricted:"受限制",unknown:"流动性未标记"}[x.liquidity||"unknown"])+" · 截至 "+esc(x.asOf||"未标注")+'</div>'+cashAccountActions(x)+'</div>').join(""):emptyCard("尚未录入现金账户。可以先增加中国和新加坡的银行账户及余额。");
@@ -811,7 +813,7 @@ function renderPortfolio(){
   const p=investmentPosition(h);if(p.invalid)return '<div class="wealth-card"><b>'+esc(h.symbol)+'</b><div class="note warning">'+esc(p.invalid)+'</div></div>';
   const val=p.quantity*Number(h.price||0),change=p.unrealized,pct=p.bookCost>0?change/p.bookCost*100:null;
   return '<div class="wealth-card"><div class="row"><b>'+esc(h.symbol)+'</b><span class="tag">'+esc(h.market)+' · '+esc(h.assetType||"stock")+'</span></div>'+
-  '<div class="section-sub">'+esc(h.name||"未填写名称")+'</div><div class="wealth-amount">'+cashValue(h.currency,val)+'</div>'+
+  '<div class="section-sub">'+esc(h.name||"未填写名称")+' · '+esc(brokerageForHolding(h).name)+'</div><div class="wealth-amount">'+cashValue(h.currency,val)+'</div>'+
   '<div class="wealth-foot">现持 '+Number(p.quantity.toFixed(8))+' 股/份 · 移动平均成本 '+cashValue(h.currency,p.averageCost)+' · 最新单价 '+cashValue(h.currency,h.price)+' · '+esc(h.asOf||"未标记估值日")+'</div>'+
   '<div class="'+(change>=0?"positive":"negative")+'">未实现 '+(change>=0?"+":"−")+cashValue(h.currency,Math.abs(change))+(pct===null?"":" ("+pct.toFixed(2)+"%)")+'</div>'+
   '<div class="wealth-foot">已实现 '+cashValue(h.currency,p.realized)+' · 累计分红 '+cashValue(h.currency,p.dividends)+' · 已记录手续费 '+cashValue(h.currency,p.fees)+'</div>'+
