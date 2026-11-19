@@ -132,7 +132,7 @@ body{overflow-x:clip}
 <div class="row"><div><div class="section-title">资产负债总账</div><div class="section-sub">手动记录余额快照。不会根据不完整消费流水推算银行余额。</div></div><button class="btn primary" onclick="openCash()">＋ 现金账户</button></div>
 <div class="card" style="margin-top:16px"><div class="row"><div><div class="section-title">折算汇率设置</div><div class="section-sub">汇率由你填写，不自动使用未经核实的行情；仅用于展示估算净资产。</div></div><button class="btn small" onclick="openFx()">设置汇率</button></div><div id="fxSummary" class="status" style="margin-top:12px"></div></div>
 <div id="wealthTotals" class="grid4" style="margin-top:16px"></div><div class="card" style="margin-top:16px"><div class="section-title">资产配置</div><div class="section-sub">已录入现金与股票的结构；待设置汇率时不强行生成比例</div><div id="wealthComposition" style="margin-top:16px"></div></div>
-<div class="section-title" style="margin-top:25px">现金与银行存款</div><div id="cashCards" class="wealth-card-list"></div>
+<div class="card" style="margin-top:16px"><div class="row"><div><div class="section-title">财务健康指标</div><div class="section-sub">根据实际录入数据计算，不使用缺乏依据的健康评分。</div></div><button class="btn small" onclick="openHealthSettings()">设置必要支出</button></div><div id="healthMetrics" class="wealth-home-grid" style="margin-top:14px"></div></div><div class="section-title" style="margin-top:25px">现金与银行存款</div><div id="cashCards" class="wealth-card-list"></div>
 <div class="row" style="margin-top:26px"><div class="section-title">负债</div><button class="btn" onclick="openLiability()">＋ 录入负债</button></div><div id="liabilityCards" class="wealth-card-list"></div>
 <div class="note" style="margin-top:17px">账户余额采用截至记录日期的手动快照。信用卡还款、银行转账、证券买入卖出不能同时作为消费或收入重复计入净资产。银行账户请仅使用昵称，不填写完整卡号。</div></section>
 <section class="section" id="portfolio"><div class="row"><div><div class="section-title">股票与投资持仓</div><div class="section-sub">美股 USD、新加坡股 SGD；支持手动更新最新价格及估值日期。</div></div><button class="btn primary" onclick="openHolding()">＋ 新增持仓</button></div><div id="portfolioTotals" class="grid4" style="margin-top:16px"></div><div id="holdingsCards" class="wealth-card-list"></div><div class="note" style="margin-top:16px">持仓数量 × 手动填写的价格 = 估算市值；收益按现价与成本价计算，未含手续费、税费及分红。不自动获取实时行情，也不假定尚未持有的基金或股票。</div></section>
@@ -165,7 +165,7 @@ const ICONS={"餐饮":"☕","购物":"◈","住房账单":"⌂","交通":"↗","
 const NAV=[["overview","⌂","财富总览"],["wealth","▣","资产与负债"],["portfolio","◈","股票持仓"],["transactions","▤","收支管理"],["import","⇧","批量导入"],["comparison","◫","月度对比"],["budgets","◎","预算规划"],["planning","◇","财务规划"],["reports","▥","财富报告"],["accounts","⌗","原有账户"],["settings","⚙","设置与同步"]];
 const DESCS={overview:"掌握净资产、资产配置与现金流的整体状况。",wealth:"记录中国及新加坡现金账户、股票资产和负债。",portfolio:"管理美股和新加坡股票，基金类型预留但不预设持仓。",transactions:"集中整理收入、支出和账户划转。",import:"按月上传银行流水，不需要逐日盯账。",comparison:"比较不同月份的收支结构。",budgets:"管理分类预算和储蓄目标。",planning:"规划未来大额开支、资金目标与流动性。",reports:"月度财务复盘与资产快照。",accounts:"原有收支账户昵称，不自动等同于真实账户余额。",settings:"管理隐私、备份和云端同步。"};
 const KEY="chengli.finance.v1";
-const blank=()=>({version:2,transactions:[],accounts:[{id:"a-ocbc",name:"OCBC · 9314",currency:"SGD"},{id:"a-cmb",name:"招商银行",currency:"CNY"}],budgets:[],savings:{SGD:0,CNY:0},cashAccounts:[],holdings:[],liabilities:[],wealthSnapshots:[],financialGoals:[],futurePayments:[],monthClosings:[],fxRates:{},lastValuationDate:""});
+const blank=()=>({version:2,transactions:[],accounts:[{id:"a-ocbc",name:"OCBC · 9314",currency:"SGD"},{id:"a-cmb",name:"招商银行",currency:"CNY"}],budgets:[],savings:{SGD:0,CNY:0},cashAccounts:[],holdings:[],liabilities:[],wealthSnapshots:[],financialGoals:[],futurePayments:[],monthClosings:[],monthChecks:{},monthlyEssentialsSGD:null,fxRates:{},lastValuationDate:""});
 let db=load(),currency="SGD",month=new Date().toISOString().slice(0,7),page="overview",compareMode="same",pending=[],syncSha=null;
 const $=id=>document.getElementById(id),sym=c=>c==="CNY"?"¥":"S$",money=(n,c=currency)=>sym(c)+Number(Math.abs(n)||0).toLocaleString("en-SG",{minimumFractionDigits:2,maximumFractionDigits:2}),esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function load(){try{const o=JSON.parse(localStorage.getItem(KEY));if(o&&Array.isArray(o.transactions)&&Array.isArray(o.accounts)){return {...blank(),...o,version:2}}}catch(e){}return blank()}
@@ -360,12 +360,13 @@ function renderWealthHome(){
 }
 function cashFormTitle(x){return x?"编辑现金账户":"新增现金账户"}
 function openCash(itemId){
- const x=wealthArray("cashAccounts").find(x=>x.id===itemId)||{name:"",country:currency==="SGD"?"SG":"CN",currency:currency==="SGD"?"SGD":"CNY",balance:"",asOf:localToday(),note:""};
+ const x=wealthArray("cashAccounts").find(x=>x.id===itemId)||{name:"",country:currency==="SGD"?"SG":"CN",currency:currency==="SGD"?"SGD":"CNY",balance:"",asOf:localToday(),liquidity:"unknown",note:""};
  openModal(cashFormTitle(itemId),'<form id="cashForm" class="form-grid">'+
  '<label class="wide"><span class="field-label">账户昵称</span><input class="field" name="name" required maxlength="80" value="'+esc(x.name)+'" placeholder="例如：OCBC 储蓄账户"></label>'+
  '<label><span class="field-label">所在地区</span><select class="field" name="country">'+opts(["SG","CN","OTHER"],x.country)+'</select></label>'+
  '<label><span class="field-label">币种</span><select class="field" name="currency">'+opts(["SGD","CNY","USD"],x.currency)+'</select></label>'+
  '<label><span class="field-label">当前记录余额</span><input class="field" type="number" required min="0" step="0.01" name="balance" value="'+esc(x.balance)+'" placeholder="银行显示的余额"></label>'+
+ '<label><span class="field-label">资金可动用性</span><select class="field" name="liquidity">'+opts(["unknown","available","restricted"],x.liquidity||"unknown")+'</select></label>'+
  '<label><span class="field-label">余额截至日期</span><input class="field" type="date" required name="asOf" value="'+esc(x.asOf||localToday())+'"></label>'+
  '<label class="wide"><span class="field-label">备注（可选）</span><input class="field" name="note" maxlength="150" value="'+esc(x.note||"")+'"></label>'+
  '<div class="wide note">请填写银行当前实际余额；这里不会从消费流水重复加减，也不保存完整银行卡号。</div><button class="btn primary wide">保存余额记录</button></form>');
@@ -410,14 +411,39 @@ function openFx(){
 }
 function deleteWealthRecord(kind,x){const map={cash:"cashAccounts",holding:"holdings",liability:"liabilities",goal:"financialGoals",payment:"futurePayments"};const k=map[kind];if(!k)return;if(!confirm("确认删除这条记录？历史月度快照不会被修改。"))return;db[k]=wealthArray(k).filter(v=>v.id!==x);save()}
 function wealthItemActions(kind,x){return '<div class="wealth-actions"><button class="btn small" onclick="'+({cash:"openCash",holding:"openHolding",liability:"openLiability",goal:"openGoal",payment:"openPayment"}[kind])+'(\''+esc(x.id)+'\')">编辑</button><button class="btn small ghost" onclick="deleteWealthRecord(\''+kind+'\',\''+esc(x.id)+'\')">删除</button></div>'}
+
+function openHealthSettings(){
+ openModal("必要支出参考",'<form id="essentialsForm" class="form-grid"><label class="wide"><span class="field-label">每月必要支出（统一折算为 SGD）</span><input class="field" type="number" name="amount" min="0.01" step="0.01" placeholder="可暂时留空" value="'+esc(db.monthlyEssentialsSGD||"")+'"></label><div class="wide note">此项由你自行估算，用于衡量可动用现金大致覆盖多少个月必要支出；不是根据不完整流水自动推算。</div><button class="btn primary wide">保存参考</button></form>');
+ $("essentialsForm").onsubmit=e=>{e.preventDefault();const x=new FormData(e.target).get("amount");if(x!==""&&(!Number.isFinite(Number(x))||Number(x)<=0)){toast("金额必须大于零");return}db.monthlyEssentialsSGD=x===""?null:Number(x);save();closeModal()}
+}
+function renderHealthMetrics(w){
+ let freeCash=0,unknown=false;
+ for(const x of wealthArray("cashAccounts")){
+  if(x.liquidity==="unknown"||!x.liquidity){unknown=true;continue}
+  if(x.liquidity!=="available")continue;
+  const val=convertSGD(Number(x.balance||0),x.currency);
+  if(val===null){unknown=true;continue}
+  freeCash+=val;
+ }
+ const cashRunway=unknown?"部分账户未标记/缺汇率":db.monthlyEssentialsSGD>0?(freeCash/db.monthlyEssentialsSGD).toFixed(1)+" 个月":"需设置每月必要支出";
+ const securities=wealthArray("holdings").map(h=>({label:h.symbol,value:convertSGD(holdingMarket(h),h.currency)}));
+ const valid=securities.every(x=>x.value!==null),holdTotal=valid?securities.reduce((n,x)=>n+x.value,0):0;
+ const largest=holdTotal>0?securities.reduce((a,b)=>a.value>b.value?a:b):null;
+ const concentration=!valid?"持仓币种缺参考汇率":largest?largest.label+" · "+(largest.value/holdTotal*100).toFixed(1)+"%":"尚无持仓";
+ const assetBase=w.byAsset.cash+w.byAsset.stocks,liability=Math.abs(w.byAsset.debt);
+ const leverage=w.missing.length?"缺少汇率":assetBase>0?(liability/assetBase*100).toFixed(1)+"%":"尚无可计算资产";
+ $("healthMetrics").innerHTML=[["必要支出覆盖",cashRunway,"仅以已标记可动用的现金计算"],["最大单一持仓",concentration,"占已录入股票投资市值"],["负债 / 总资产",leverage,"以手动余额及估值计算"]].map(x=>'<div class="wealth-stat"><small>'+esc(x[0])+'</small><b style="font-size:clamp(14px,2vw,19px)">'+esc(x[1])+'</b><small>'+esc(x[2])+'</small></div>').join("")
+}
+
 function renderWealth(){
  const w=wealthRollup(),hasAssets=w.rows.length>0;
  $("wealthTotals").innerHTML=[["资产总额",w.missing.length?"汇率待补":cashValue("SGD",w.byAsset.cash+w.byAsset.stocks),"现金 + 股票"],["负债总额",w.missing.length?"汇率待补":cashValue("SGD",Math.abs(w.byAsset.debt)),"未偿余额"],["估算净资产",hasAssets?wealthMoney(w.total):"尚未录入","资产 − 负债"],["录入覆盖",w.rows.length+" 项","以最后录入的快照为准"]].map(([k,v,t],i)=>'<div class="card stat '+(i===2?"hero":"")+'"><div class="label">'+k+'</div><div class="value" style="font-size:clamp(17px,2.2vw,25px)">'+esc(v)+'</div><div class="meta">'+esc(t)+'</div></div>').join("");
  const ratesNow=rates();$("fxSummary").textContent="CNY→SGD："+(ratesNow.CNY>0?ratesNow.CNY:"未设置")+" · USD→SGD："+(ratesNow.USD>0?ratesNow.USD:"未设置")+" · 汇率日期："+(db.fxRates?.asOf||"未记录");
  const cash=w.byAsset.cash,stocks=w.byAsset.stocks,denom=cash+stocks;
  $("wealthComposition").innerHTML=w.missing.length?'<div class="note warning">需要先补充 '+esc(w.missing.join("、"))+' 的参考汇率，才能比较跨币种资产占比。</div>':(denom>0?'<div class="allocation-track"><div style="width:'+(cash/denom*100)+'%;background:#397f73"></div><div style="width:'+(stocks/denom*100)+'%;background:#8aafc0"></div></div><div class="row" style="margin-top:13px"><span>● 现金与存款 '+(cash/denom*100).toFixed(1)+'% · '+cashValue("SGD",cash)+'</span><span>● 股票投资 '+(stocks/denom*100).toFixed(1)+'% · '+cashValue("SGD",stocks)+'</span></div>':'<div class="section-sub">录入现金或股票并设置所需汇率后，展示资产结构。</div>');
+ renderHealthMetrics(w);
  const ca=wealthArray("cashAccounts");
- $("cashCards").innerHTML=ca.length?ca.map(x=>'<div class="wealth-card"><b>'+esc(x.name)+'</b><div class="wealth-amount">'+cashValue(x.currency,x.balance)+'</div><div class="wealth-foot">'+esc(x.country)+" · "+esc(x.currency)+" · 截至 "+esc(x.asOf||"未标注")+'</div>'+wealthItemActions("cash",x)+'</div>').join(""):emptyCard("尚未录入现金账户。可以先增加中国和新加坡的银行账户及余额。");
+ $("cashCards").innerHTML=ca.length?ca.map(x=>'<div class="wealth-card"><b>'+esc(x.name)+'</b><div class="wealth-amount">'+cashValue(x.currency,x.balance)+'</div><div class="wealth-foot">'+esc(x.country)+" · "+esc(x.currency)+" · "+({available:"可动用",restricted:"受限制",unknown:"流动性未标记"}[x.liquidity||"unknown"])+" · 截至 "+esc(x.asOf||"未标注")+'</div>'+wealthItemActions("cash",x)+'</div>').join(""):emptyCard("尚未录入现金账户。可以先增加中国和新加坡的银行账户及余额。");
  const li=wealthArray("liabilities");
  $("liabilityCards").innerHTML=li.length?li.map(x=>'<div class="wealth-card"><b>'+esc(x.name)+'</b><div class="wealth-amount">'+cashValue(x.currency,x.balance)+'</div><div class="wealth-foot">'+esc(x.type||"")+" · 截至 "+esc(x.asOf||"未标注")+'</div>'+wealthItemActions("liability",x)+'</div>').join(""):emptyCard("还没有录入负债。没有负债时可以保持空白。")
 }
