@@ -542,6 +542,67 @@ function openLiability(itemId){
  '<div class="wide note">选择兴业银行等实际扣款账户，方便导入流水后筛选房贷还款。只关联账户不会自动扣减负债；扣减须核对还款本金。</div><button class="btn primary wide">保存负债</button></form>');
  $("liabilityForm").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(!numValid(d.balance)||!validISO(d.asOf)){toast("请输入有效负债和日期");return}const record={...d,balance:Number(d.balance),id:itemId||id()};db.liabilities=wealthArray("liabilities");const i=db.liabilities.findIndex(x=>x.id===itemId);if(i>=0)db.liabilities[i]=record;else db.liabilities.push(record);save();closeModal()}
 }
+
+/* Mortgage repayment links are explicit and audited: only verified principal reduces liability. */
+const loanCents=v=>Math.round(Number(v)*100);
+function loanPaymentsFor(loan){return wealthArray("loanRepayments").filter(x=>x.loanId===loan.id).sort((a,b)=>b.date.localeCompare(a.date))}
+function loanCandidates(loan){return db.transactions.filter(t=>t.currency===loan.currency&&["expense","transfer"].includes(t.type)&&!t.loanRepaymentId&&Number(t.amount)>0&&(t.date||"")>(loan.asOf||"0000-00-00")).sort((a,b)=>b.date.localeCompare(a.date))}
+function openLoanRepayment(loanId){
+ const loan=wealthArray("liabilities").find(x=>x.id===loanId);if(!loan)return;
+ const accounts=wealthArray("cashAccounts").filter(a=>(a.productType||"bank")==="bank"&&a.currency===loan.currency);
+ const selected=loan.repaymentAccountId&&accounts.some(a=>a.id===loan.repaymentAccountId)?loan.repaymentAccountId:(accounts.find(a=>/兴业/.test(a.name))?.id||"");
+ const payments=loanPaymentsFor(loan),candidates=loanCandidates(loan);
+ const accountOpt='<option value="">请选择实际扣款账户</option>'+accounts.map(a=>'<option value="'+esc(a.id)+'" '+(a.id===selected?"selected":"")+'>'+esc(a.name)+'</option>').join("");
+ const options='<option value="">请选择兴业银行扣款流水</option>'+candidates.map(t=>{
+  const owner=accounts.find(a=>a.id===t.accountId),isMatch=!!selected&&(t.accountId===selected||t.account===accounts.find(a=>a.id===selected)?.name);
+  return '<option value="'+esc(t.id)+'" '+(isMatch?"data-suggested=\"true\"":"")+'>'+(isMatch?"★ ":"")+esc(t.date)+' · '+cashValue(t.currency,t.amount)+' · '+esc(t.description.slice(0,34))+' · '+esc(owner?.name||t.account||"账户未指定")+'</option>'
+ }).join("");
+ const history=payments.length?'<div class="loan-payment-history"><b>已关联的还款记录</b>'+payments.slice(0,12).map(p=>'<div class="loan-payment-item"><div><b>'+esc(p.date)+'</b> · 月供 '+cashValue(p.currency,p.total)+'<div class="section-sub">本金 '+cashValue(p.currency,p.principal)+' · 利息及费用 '+cashValue(p.currency,p.interest)+'</div></div><button class="btn small ghost" onclick="undoLoanRepayment(\''+esc(p.id)+'\')">撤销</button></div>').join("")+'</div>':'<div class="section-sub">还没有关联的房贷扣款记录。</div>';
+ openModal("房贷还款关联 · "+loan.name,'<div class="note">当前未偿本金 '+cashValue(loan.currency,loan.balance)+' · 余额日期 '+esc(loan.asOf||"未标记")+'。先上传兴业银行流水，再选实际扣款，并以还款计划或银行明细核实本金与利息。<b>不允许直接把整笔月供作为本金扣减。</b></div>'+
+ '<form class="form-grid" id="loanPaymentForm">'+
+ '<label class="wide"><span class="field-label">房贷扣款银行账户</span><select class="field" name="accountId" required id="loanPaymentAccount">'+accountOpt+'</select></label>'+
+ '<label class="wide"><span class="field-label">选择已导入的银行扣款流水</span><select class="field" name="transactionId" required id="loanPaymentTransaction">'+options+'</select></label>'+
+ '<div class="wide" id="loanPaymentCandidateInfo" style="font-size:12px;color:#687d76">仅列出未关联且晚于贷款余额日期的人民币支出/转账。★ 表示可能属于所选扣款账户，但仍需核实。</div>'+
+ '<label><span class="field-label">本次偿还本金 ('+loan.currency+')</span><input class="field" type="number" min="0" step="0.01" required name="principal" id="loanPrincipal" placeholder="以银行还款明细为准"></label>'+
+ '<label><span class="field-label">利息及其他费用 ('+loan.currency+')</span><input class="field" type="number" min="0" step="0.01" required name="interest" id="loanInterest" placeholder="不可猜测"></label>'+
+ '<div class="wide note">本金 + 利息及费用必须等于实际扣款金额。只有本金减少「'+esc(loan.name)+'」贷款余额；利息及费用计入住房账单支出。已录入的银行余额保持原样，不重复扣款。</div>'+
+ '<button class="btn primary wide" type="submit">核对并关联这笔房贷还款</button></form>'+history);
+ const ac=$("loanPaymentAccount"),tr=$("loanPaymentTransaction"),note=$("loanPaymentCandidateInfo");
+ function updateCandidate(){
+  const tid=tr.value,t=db.transactions.find(x=>x.id===tid);
+  if(!t)return;
+  const owner=accounts.find(x=>x.id===ac.value),match=!!owner&&(t.accountId===owner.id||t.account===owner.name);
+  note.textContent='本笔扣款 '+cashValue(t.currency,t.amount)+' · '+t.date+' · '+(match?"来源账户匹配":"来源账户未匹配，请务必核对原始兴业账单")+"。本金和利息需另外填写。";
+ }
+ tr.onchange=updateCandidate;ac.onchange=()=>{const a=accounts.find(x=>x.id===ac.value);if(!a)return;const c=candidates.find(t=>t.accountId===a.id||t.account===a.name);if(c)tr.value=c.id;updateCandidate()};
+ $("loanPaymentForm").onsubmit=e=>{
+  e.preventDefault();const d=Object.fromEntries(new FormData(e.target));
+  const account=accounts.find(x=>x.id===d.accountId),t=db.transactions.find(x=>x.id===d.transactionId);
+  if(!account||!t||t.currency!==loan.currency||!["expense","transfer"].includes(t.type)||t.loanRepaymentId){toast("扣款流水或银行账户无效，或该笔已经关联");return}
+  if(!validISO(t.date)||t.date<=(loan.asOf||"0000-00-00")){toast("这笔还款不晚于当前贷款余额日期，可能已计入本金，不能再次扣减");return}
+  const p=Number(d.principal),interest=Number(d.interest);
+  if(!numValid(d.principal)||!numValid(d.interest)||loanCents(p)+loanCents(interest)!==loanCents(t.amount)){toast("本金与利息费用的合计必须等于该笔银行扣款");return}
+  if(loanCents(p)<=0||loanCents(p)>loanCents(loan.balance)){toast("偿还本金必须大于零且不能超过当前未偿本金");return}
+  const sourceMatches=t.accountId===account.id||t.account===account.name;
+  if(!confirm((sourceMatches?"":"注意：交易目前未标记为此银行账户！\n")+'确认 '+t.date+' 的 '+cashValue(t.currency,t.amount)+' 为 '+account.name+' 扣缴的「'+loan.name+'」房贷？\n偿还本金 '+cashValue(loan.currency,p)+'，利息及费用 '+cashValue(loan.currency,interest)+'。\n仅本金减少房贷负债，银行账户余额不再次扣除。'))return;
+  const record={id:id(),loanId:loan.id,transactionId:t.id,accountId:account.id,date:t.date,currency:loan.currency,total:Number(t.amount),principal:p,interest,beforeBalance:Number(loan.balance),afterBalance:Math.round((Number(loan.balance)-p)*100)/100,previousAsOf:loan.asOf||"",originalTransaction:{...t},recordedAt:new Date().toISOString()};
+  db.loanRepayments=wealthArray("loanRepayments");db.loanRepayments.push(record);
+  loan.balance=record.afterBalance;loan.asOf=t.date;loan.repaymentAccountId=account.id;
+  t.type="mortgage_payment";t.category="住房账单";t.account=account.name;t.accountId=account.id;t.loanId=loan.id;t.loanRepaymentId=record.id;t.principalAmount=p;t.interestAmount=interest;
+  save();closeModal();toast("房贷本金已减少 "+cashValue(loan.currency,p)+"，利息费用 "+cashValue(loan.currency,interest)+" 已单独统计");
+ };
+}
+function undoLoanRepayment(repaymentId){
+ const payments=wealthArray("loanRepayments"),x=payments.find(p=>p.id===repaymentId);if(!x)return;
+ const loan=wealthArray("liabilities").find(a=>a.id===x.loanId),txn=db.transactions.find(t=>t.id===x.transactionId);
+ if(!loan||!txn||txn.loanRepaymentId!==x.id||loan.asOf!==x.date||loanCents(loan.balance)!==loanCents(x.afterBalance)){toast("后续余额或流水发生变化，无法安全自动撤销。请先核对账目。");return}
+ if(!confirm("撤销 "+x.date+" 的房贷还款关联？会恢复关联前的流水类型与贷款本金，且不修改银行现金余额。"))return;
+ const previousAccount=loan.repaymentAccountId;
+ loan.balance=x.beforeBalance;loan.asOf=x.previousAsOf;
+ const restored={...x.originalTransaction};Object.keys(txn).forEach(k=>delete txn[k]);Object.assign(txn,restored);
+ db.loanRepayments=payments.filter(p=>p.id!==repaymentId);
+ save();closeModal();toast("已恢复原始交易及贷款本金；扣款银行账户关联保留");
+}
 function openFx(){
  const x=db.fxRates||{};
  openModal("设置估算折算汇率",'<form id="fxForm" class="form-grid">'+
