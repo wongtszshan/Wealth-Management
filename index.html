@@ -469,6 +469,59 @@ function validISO(v){return /^\d{4}-\d{2}-\d{2}$/.test(String(v||""))&&!Number.i
 function emptyCard(text){return '<div class="wealth-card"><div class="section-sub">'+esc(text)+'</div></div>'}
 function holdingMarket(h){return investmentPosition(h).quantity*Number(h.price||0)}
 function holdingCost(h){return investmentPosition(h).bookCost}
+
+function brokerAccounts(){
+ if(!Array.isArray(db.brokerageAccounts))db.brokerageAccounts=[];
+ if(!db.brokerageAccounts.length)db.brokerageAccounts.push({id:"broker-moomoo",name:"moomoo",cashBalances:{USD:null,SGD:null},reportedTotal:null,reportedCurrency:"SGD",asOf:"",note:"由原有持仓归入账户；现金与报告总额待录入"});
+ return db.brokerageAccounts;
+}
+function brokerageForHolding(h){return brokerAccounts().find(a=>a.id===h.brokerageAccountId)||brokerAccounts()[0]}
+function brokerageComputed(a){
+ const positions=wealthArray("holdings").filter(h=>brokerageForHolding(h).id===a.id);
+ const values={USD:0,SGD:0,CNY:0};
+ for(const h of positions){const p=investmentPosition(h);if(!p.invalid)values[h.currency]=(values[h.currency]||0)+p.quantity*Number(h.price||0)}
+ for(const c of ["USD","SGD","CNY"])if(a.cashBalances?.[c]!==null&&a.cashBalances?.[c]!==undefined&&a.cashBalances[c]!=="")values[c]+=Number(a.cashBalances[c]);
+ let total=0,missing=[];
+ for(const [c,v] of Object.entries(values)){if(v===0)continue;const n=convertSGD(v,c);if(n===null)missing.push(c);else total+=n}
+ return {positions,values,total:missing.length?null:total,missing};
+}
+function renderBrokerageAccounts(){
+ const accounts=brokerAccounts();
+ $("brokerageAccountsList").innerHTML=accounts.map(a=>{
+  const calc=brokerageComputed(a),hasReport=a.reportedTotal!==null&&a.reportedTotal!==undefined&&a.reportedTotal!=="";
+  const reported=hasReport?convertSGD(Number(a.reportedTotal),a.reportedCurrency||"SGD"):null;
+  const diff=reported!==null&&calc.total!==null?reported-calc.total:null;
+  const unknownCash=["USD","SGD","CNY"].filter(c=>a.cashBalances?.[c]===null||a.cashBalances?.[c]===undefined);
+  return '<div class="card brokerage-account-card"><div class="row"><div><div class="section-title">'+esc(a.name)+' · 券商账户</div><div class="section-sub">总资产 → 账户现金 + 所有股票持仓 → 买卖流水</div></div><button class="btn small primary" onclick="openBrokerageAccount(\''+esc(a.id)+'\')">编辑账户</button></div>'+
+  '<div class="brokerage-figures"><div><small>券商报告总资产</small><b>'+(hasReport?cashValue(a.reportedCurrency||"SGD",a.reportedTotal):"未录入")+'</b></div>'+
+  '<div><small>内部计算总资产 (SGD)</small><b>'+(calc.total===null?"缺少汇率":cashValue("SGD",calc.total))+'</b></div>'+
+  '<div><small>待核对差额 (SGD)</small><b>'+(diff===null?"尚未核对":cashValue("SGD",diff))+'</b></div></div>'+
+  '<div class="brokerage-cash-breakdown">'+["USD","SGD","CNY"].map(c=>'<span>'+c+' 现金：'+(a.cashBalances?.[c]==null?"未录入":cashValue(c,a.cashBalances[c]))+'</span>').join("")+'</div>'+
+  '<div class="wealth-foot">关联 '+calc.positions.length+' 个持仓 · '+(a.asOf?"报告截至 "+esc(a.asOf):"报告日期未填写")+' · '+(unknownCash.length?"部分现金尚未录入，不代表零余额":"现金已录入")+'</div></div>';
+ }).join("");
+}
+function openBrokerageAccount(accountId){
+ const a=brokerAccounts().find(x=>x.id===accountId);if(!a)return;
+ openModal("券商账户 · "+a.name,'<form id="brokerageForm" class="form-grid">'+
+ '<label class="wide"><span class="field-label">券商账户昵称</span><input class="field" name="name" required maxlength="80" value="'+esc(a.name)+'"></label>'+
+ '<label><span class="field-label">USD 现金余额</span><input class="field" type="number" min="0" step="0.01" name="USD" placeholder="未录入" value="'+esc(a.cashBalances?.USD??"")+'"></label>'+
+ '<label><span class="field-label">SGD 现金余额</span><input class="field" type="number" min="0" step="0.01" name="SGD" placeholder="未录入" value="'+esc(a.cashBalances?.SGD??"")+'"></label>'+
+ '<label><span class="field-label">CNY 现金余额</span><input class="field" type="number" min="0" step="0.01" name="CNY" placeholder="未录入" value="'+esc(a.cashBalances?.CNY??"")+'"></label>'+
+ '<label><span class="field-label">报告总资产币种</span><select class="field" name="reportedCurrency">'+opts(["SGD","USD","CNY"],a.reportedCurrency||"SGD")+'</select></label>'+
+ '<label><span class="field-label">券商报告总资产</span><input class="field" type="number" min="0" step="0.01" name="reportedTotal" placeholder="仅用于对账" value="'+esc(a.reportedTotal??"")+'"></label>'+
+ '<label><span class="field-label">报告日期</span><input class="field" type="date" name="asOf" value="'+esc(a.asOf||today())+'"></label>'+
+ '<div class="wide note">这里只填账户现金（不是购买力或保证金融资）与券商报表总资产。账户总资产仅作核对，不会与内部持仓重复相加。不同日期、未结算款项和汇率会造成差异。</div>'+
+ '<button class="btn primary wide">保存券商账户</button></form>');
+ $("brokerageForm").onsubmit=e=>{
+  e.preventDefault();const f=Object.fromEntries(new FormData(e.target));
+  for(const c of ["USD","SGD","CNY","reportedTotal"])if(f[c]!==""&&!numValid(f[c])){toast("余额必须为有效非负金额");return}
+  if(f.asOf&&!validISO(f.asOf)){toast("日期格式不正确");return}
+  a.name=f.name.trim();a.cashBalances={USD:f.USD===""?null:Number(f.USD),SGD:f.SGD===""?null:Number(f.SGD),CNY:f.CNY===""?null:Number(f.CNY)};
+  a.reportedTotal=f.reportedTotal===""?null:Number(f.reportedTotal);a.reportedCurrency=f.reportedCurrency;a.asOf=f.asOf;
+  save();closeModal();toast("券商账户已保存，报告总额只用于对账");
+ };
+}
+
 function investmentTradesFor(id){return wealthArray("investmentTrades").filter(t=>t.holdingId===id).sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||"").localeCompare(b.createdAt||"")||a.id.localeCompare(b.id))}
 function investmentPosition(h,trades=investmentTradesFor(h.id)){
  let qty=Number(h.quantity||0),basis=qty*Number(h.cost||0),realized=0,dividends=0,fees=0;
