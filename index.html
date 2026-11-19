@@ -218,6 +218,30 @@ body{overflow-x:clip}
  #holdingForm>label{width:100%}
  #holdingForm input[type="date"]{appearance:none;-webkit-appearance:none;min-height:46px}
 }
+
+/* Brokerage-account / portfolio hierarchy */
+.brokerage-accounts-list{display:grid;gap:14px;margin-top:17px}
+.brokerage-account-card{padding:22px;display:grid;gap:16px;border:1px solid #dce8e2;background:linear-gradient(135deg,#f6faf8,#fff)}
+.brokerage-figures{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.brokerage-figures>div{padding:14px;border:1px solid #e3ece8;border-radius:13px;background:#fff;min-width:0}
+.brokerage-figures small{display:block;font-size:11px;color:#778e85;margin-bottom:8px}
+.brokerage-figures b{font-size:clamp(14px,1.8vw,22px);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.brokerage-cash-breakdown{display:flex;flex-wrap:wrap;gap:8px}
+.brokerage-cash-breakdown span{padding:8px 11px;border-radius:9px;background:#e9f2ed;color:#315e50;font-size:12px}
+.investment-trade-list{display:grid;gap:8px;margin-top:15px}
+.investment-trade-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 3px;border-bottom:1px solid #e9eeeb;min-width:0}
+.investment-trade-card>div{min-width:0;overflow-wrap:anywhere}
+.investment-trade-card .row{gap:10px}
+@media(max-width:740px){
+ .brokerage-account-card{padding:16px}
+ .brokerage-figures{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .brokerage-figures>div:last-child{grid-column:1/-1}
+ .brokerage-figures b{font-size:17px}
+ .investment-trade-card .btn{flex:0 0 auto;font-size:11px;padding:8px 9px}
+ #portfolio>.row{align-items:flex-start}
+ #portfolio>.row .toolbar{flex-wrap:wrap;justify-content:flex-end}
+ #portfolio>.row .toolbar .btn{padding:9px 11px;font-size:12px}
+}
 </style>
 </head>
 <body>
@@ -490,11 +514,11 @@ function renderBrokerageAccounts(){
  $("brokerageAccountsList").innerHTML=accounts.map(a=>{
   const calc=brokerageComputed(a),hasReport=a.reportedTotal!==null&&a.reportedTotal!==undefined&&a.reportedTotal!=="";
   const reported=hasReport?convertSGD(Number(a.reportedTotal),a.reportedCurrency||"SGD"):null;
-  const diff=reported!==null&&calc.total!==null?reported-calc.total:null;
+  const cashComplete=["USD","SGD"].every(c=>a.cashBalances?.[c]!==null&&a.cashBalances?.[c]!==undefined&&a.cashBalances?.[c]!=="");const diff=cashComplete&&reported!==null&&calc.total!==null?reported-calc.total:null;
   const unknownCash=["USD","SGD","CNY"].filter(c=>a.cashBalances?.[c]===null||a.cashBalances?.[c]===undefined);
   return '<div class="card brokerage-account-card"><div class="row"><div><div class="section-title">'+esc(a.name)+' · 券商账户</div><div class="section-sub">总资产 → 账户现金 + 所有股票持仓 → 买卖流水</div></div><button class="btn small primary" onclick="openBrokerageAccount(\''+esc(a.id)+'\')">编辑账户</button></div>'+
   '<div class="brokerage-figures"><div><small>券商报告总资产</small><b>'+(hasReport?cashValue(a.reportedCurrency||"SGD",a.reportedTotal):"未录入")+'</b></div>'+
-  '<div><small>内部计算总资产 (SGD)</small><b>'+(calc.total===null?"缺少汇率":cashValue("SGD",calc.total))+'</b></div>'+
+  '<div><small>内部计算总资产 (SGD)</small><b>'+(calc.total===null?"缺少汇率":!cashComplete?"已知资产 "+cashValue("SGD",calc.total):cashValue("SGD",calc.total))+'</b></div>'+
   '<div><small>待核对差额 (SGD)</small><b>'+(diff===null?"尚未核对":cashValue("SGD",diff))+'</b></div></div>'+
   '<div class="brokerage-cash-breakdown">'+["USD","SGD","CNY"].map(c=>'<span>'+c+' 现金：'+(a.cashBalances?.[c]==null?"未录入":cashValue(c,a.cashBalances[c]))+'</span>').join("")+'</div>'+
   '<div class="wealth-foot">关联 '+calc.positions.length+' 个持仓 · '+(a.asOf?"报告截至 "+esc(a.asOf):"报告日期未填写")+' · '+(unknownCash.length?"部分现金尚未录入，不代表零余额":"现金已录入")+'</div></div>';
