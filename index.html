@@ -143,11 +143,63 @@ body{overflow-x:clip}
 .overview-ledger-period{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-top:13px;border-top:1px solid #e9eeeb}
 @media(max-width:740px){.overview-ledger-toolbar{padding:16px;margin:16px 0}.overview-ledger-header{align-items:flex-start}.overview-ledger-currency{width:auto}.overview-ledger-period{align-items:flex-start}.overview-ledger-period .toggle{gap:6px}}
 @media(max-width:380px){.overview-ledger-header{flex-direction:column;align-items:stretch}.overview-ledger-currency{width:100%}.overview-ledger-currency .currency-option{flex:1}}
+
+/* v2.0.6: Mobile-first refinements */
+@media(max-width:740px){
+ .top{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:10px!important;margin-bottom:13px!important}
+ .topright{display:flex!important;width:100%!important;max-width:none!important;flex-direction:row!important;align-items:center!important;justify-content:space-between!important;flex-wrap:nowrap!important;gap:9px!important}
+ .wealth-header-switch{flex:1 1 0!important;min-width:0!important;margin:0!important;display:flex}
+ .wealth-header-switch .wealth-unit-option{min-width:0;flex:1 1 0;padding:10px 5px;white-space:nowrap}
+ .topright .new-entry-btn{flex:0 0 auto;white-space:nowrap;min-height:45px;margin:0;font-size:12px!important;padding:10px 13px!important}
+ .topright:has(.wealth-header-switch:not(.hidden)){flex-wrap:nowrap!important}
+ .wealth-home{margin-bottom:16px}
+ .overview-ledger-toolbar{margin:18px 0 16px!important;padding:16px!important;gap:13px}
+ .overview-ledger-header{display:grid;grid-template-columns:minmax(0,1fr);gap:11px}
+ .overview-ledger-currency{width:100%!important;min-width:0;display:flex}
+ .overview-ledger-currency .currency-option{flex:1 1 50%;min-width:0;min-height:42px;font-size:14px}
+ .overview-ledger-period{display:flex;flex-direction:column;align-items:flex-start;gap:9px;padding-top:12px}
+ .overview-ledger-period .toggle{width:100%;display:flex;justify-content:space-between;gap:6px}
+ .overview-ledger-period .chip{flex:1;min-width:0;text-align:center;padding:8px 3px;font-size:11px;white-space:nowrap}
+ .ledger-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px;margin-top:2px}
+ .ledger-stats .stat{min-height:118px;padding:13px!important;border-radius:12px;background:#f7faf8;box-shadow:none;border:1px solid #e6eeea}
+ .ledger-stats .stat.hero{background:#204e49;color:#fff}
+ .ledger-stats .stat .value{font-size:clamp(17px,4.4vw,22px)!important;margin:14px 0 8px}
+ .ledger-stats .stat .meta{font-size:11px}
+ .cash-card-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;min-width:0}
+ .cash-card-actions .btn{min-width:0;width:100%;padding:9px 2px;font-size:11px;white-space:nowrap;border-radius:9px}
+ .cash-card-actions .delete-action{color:#a2544e}
+ .transaction-shell{padding:12px!important}
+ .transaction-filters{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:10px;margin:0 0 13px!important}
+ .transaction-filters #search{width:100%;min-width:0!important;flex:none!important}
+ .transaction-filters #typeFilter{min-width:0!important;width:100%;flex:none!important}
+ #transactions .tablewrap{display:none!important}
+ .transaction-mobile-list{display:grid;gap:10px}
+ .mobile-tx-card{min-width:0;border:1px solid #e5ece9;background:#fff;border-radius:14px;padding:15px;display:grid;gap:9px}
+ .mobile-tx-head{display:flex;align-items:baseline;justify-content:space-between;gap:9px}
+ .mobile-tx-head time{font-size:12px;color:#80918e;white-space:nowrap}
+ .mobile-tx-amount{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.3px}
+ .mobile-tx-income{color:#288066}.mobile-tx-expense{color:#25393d}
+ .mobile-tx-name{font-size:15px;font-weight:750;color:#20383d;line-height:1.45;overflow-wrap:anywhere}
+ .mobile-tx-tags{display:flex;gap:6px;flex-wrap:wrap}
+ .mobile-tx-tag{max-width:100%;padding:4px 8px;background:#edf4f0;color:#426b60;border-radius:7px;font-size:11px;line-height:1.45;overflow-wrap:anywhere}
+ .mobile-tx-tag.muted{background:#f2f5f3;color:#718582}
+ .mobile-tx-note{font-size:12px;color:#738582;line-height:1.5;overflow-wrap:anywhere}
+ .mobile-tx-actions{display:flex;justify-content:flex-end;gap:6px;border-top:1px solid #edf1ef;padding-top:9px}
+ .mobile-tx-actions .btn{font-size:11px;padding:6px 12px}
+ .mobile-tx-audit{font-size:11px;color:#69867d}
+ #transactions>.row{gap:10px}
+ #transactions>.row .toolbar{margin:0;gap:6px}
+ #transactions>.row .toolbar .btn{padding:8px 9px;font-size:11px}
+}
+@media(min-width:741px){
+ .transaction-mobile-list{display:none}
+ .cash-card-actions{display:flex;gap:7px;flex-wrap:wrap}
+}
 </style>
 </head>
 <body>
 <div class="app">
-<aside class="side"><div class="brand"><div class="logo">澄</div><div><strong>澄理</strong><small>WEALTH MANAGEMENT</small></div></div><nav class="nav" id="sidenav"></nav><div class="side-foot">PRIVATE FINANCE WORKSPACE<br><b id="sideStatus">● 本地账本</b><br>SGD · CNY 双币种支持<br><span style="opacity:.65">Version 2.0.5</span></div></aside>
+<aside class="side"><div class="brand"><div class="logo">澄</div><div><strong>澄理</strong><small>WEALTH MANAGEMENT</small></div></div><nav class="nav" id="sidenav"></nav><div class="side-foot">PRIVATE FINANCE WORKSPACE<br><b id="sideStatus">● 本地账本</b><br>SGD · CNY 双币种支持<br><span style="opacity:.65">Version 2.0.6</span></div></aside>
 <main>
 <div class="top"><div><div class="eyebrow" id="eyebrow">PERSONAL FINANCE</div><h1 id="pageTitle">财富总览</h1><div class="muted" id="pageSubtitle">掌握净资产、资产配置与现金流的整体状况。</div></div><div class="topright"><div class="wealth-header-switch wealth-total-switch hidden" role="group" aria-label="财富总览汇总显示币种"><button type="button" class="wealth-unit-option active" data-wealth-unit="SGD" aria-pressed="true" onclick="setWealthUnit('SGD')">S$ SGD</button><button type="button" class="wealth-unit-option" data-wealth-unit="CNY" aria-pressed="false" onclick="setWealthUnit('CNY')">¥ CNY</button></div><div class="currency-switch" role="group" aria-label="显示币种"><button type="button" class="currency-option active" data-currency="SGD" aria-pressed="true" onclick="setCurrency('SGD')">S$ <span>SGD</span></button><button type="button" class="currency-option" data-currency="CNY" aria-pressed="false" onclick="setCurrency('CNY')">¥ <span>CNY</span></button></div><button class="btn primary new-entry-btn" id="primaryQuickAction" onclick="quickAction()">＋ 记一笔</button></div></div>
 <section class="section" id="wealth">
@@ -219,7 +271,21 @@ const cats=categories(x).filter(v=>v.value>0),total=a.expense;let start=0;const 
 const sorted=[...cats].sort((a,b)=>b.value-a.value),max=Math.max(1,...cats.map(v=>v.value));$("categoryBars").innerHTML=sorted.length?sorted.map(v=>'<div class="barrow"><span>'+v.name+'</span><div class="track"><div class="fill" style="width:'+(v.value/max*100)+'%;background:'+COLORS[CATS.indexOf(v.name)]+'"></div></div><span class="baramount num">'+money(v.value)+'</span></div>').join(""):'<div class="empty">还没有这个月的消费分类数据</div>';
 const bs=db.budgets.filter(b=>b.currency===currency);$("homeBudgets").innerHTML=bs.length?bs.slice(0,4).map(b=>budgetHTML(b,x)).join(""):'<div class="empty"><strong>尚未设置分类预算</strong><button class="btn small" onclick="go(\'budgets\')">现在设置</button></div>';
 $("recent").innerHTML=x.length?[...x].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6).map(t=>'<div class="item"><div class="pill-icon">'+(ICONS[t.category]||"⇆")+'</div><div class="detail"><strong>'+esc(t.description)+'</strong><small>'+esc(t.date)+' · '+esc(t.category||"转账")+'</small></div><span class="sum '+(t.type==="income"?"positive":"")+'">'+(t.type==="expense"?"−":t.type==="income"?"+":"⇆")+money(t.amount)+'</span></div>').join(""):'<div class="empty">暂无交易，点击右上角「记一笔」开始</div>'}
-function renderTransactions(){const q=$("search").value.trim().toLowerCase(),type=$("typeFilter").value;const ar=db.transactions.filter(t=>t.currency===currency&&(!type||t.type===type)&&(!q||[t.description,t.note,t.account].join(" ").toLowerCase().includes(q))).sort((a,b)=>b.date.localeCompare(a.date));$("transCount").textContent="("+ar.length+")";$("transactionRows").innerHTML=ar.length?ar.map(t=>'<tr><td>'+esc(t.date)+'</td><td><b>'+esc(t.description)+'</b>'+ (t.note?'<br><span class="mini">'+esc(t.note)+'</span>':"")+'</td><td><span class="tag">'+esc(t.category||"账户划转")+'</span><br><span class="mini">'+esc(t.account||"未指定")+'</span></td><td><span class="mini">'+esc(t.source||"手动")+'</span></td><td><b class="num">'+(t.type==="expense"?"−":t.type==="income"?"+":t.type==="adjustment"?(Number(t.adjustmentDelta)<0?"−":"+"):"⇆")+money(t.amount,t.currency)+'</b><br>'+(t.type==="adjustment"?'<span class="tag">仅作校对 · 不计收支</span>':'<button class="btn small ghost" onclick="openEntry(\''+t.id+'\')">编辑</button><button class="btn small ghost" onclick="removeTransaction(\''+t.id+'\')">删除</button>')+'</td></tr>').join(""):'<tr><td colspan="5"><div class="empty">未找到交易记录</div></td></tr>'}
+function renderTransactions(){const q=$("search").value.trim().toLowerCase(),type=$("typeFilter").value;const ar=db.transactions.filter(t=>t.currency===currency&&(!type||t.type===type)&&(!q||[t.description,t.note,t.account].join(" ").toLowerCase().includes(q))).sort((a,b)=>b.date.localeCompare(a.date));$("transCount").textContent="("+ar.length+")";$("transactionRows").innerHTML=ar.length?ar.map(t=>'<tr><td>'+esc(t.date)+'</td><td><b>'+esc(t.description)+'</b>'+ (t.note?'<br><span class="mini">'+esc(t.note)+'</span>':"")+'</td><td><span class="tag">'+esc(t.category||"账户划转")+'</span><br><span class="mini">'+esc(t.account||"未指定")+'</span></td><td><span class="mini">'+esc(t.source||"手动")+'</span></td><td><b class="num">'+(t.type==="expense"?"−":t.type==="income"?"+":t.type==="adjustment"?(Number(t.adjustmentDelta)<0?"−":"+"):"⇆")+money(t.amount,t.currency)+'</b><br>'+(t.type==="adjustment"?'<span class="tag">仅作校对 · 不计收支</span>':'<button class="btn small ghost" onclick="openEntry(\''+t.id+'\')">编辑</button><button class="btn small ghost" onclick="removeTransaction(\''+t.id+'\')">删除</button>')+'</td></tr>').join(""):'<tr><td colspan="5"><div class="empty">未找到交易记录</div></td></tr>';renderMobileTransactions(ar)}
+function renderMobileTransactions(items){
+ const el=$("transactionMobileCards");if(!el)return;
+ const prefix=t=>t.type==="expense"?"−":t.type==="income"?"+":t.type==="adjustment"?(Number(t.adjustmentDelta)<0?"−":"+"):"⇆";
+ el.innerHTML=items.length?items.map(t=>{
+  const tid=esc(t.id),adjust=t.type==="adjustment";
+  return '<article class="mobile-tx-card"><div class="mobile-tx-head"><time datetime="'+esc(t.date)+'">'+esc(t.date)+'</time>'+
+  '<strong class="mobile-tx-amount '+(t.type==="income"?"mobile-tx-income":t.type==="expense"?"mobile-tx-expense":"")+'">'+prefix(t)+money(t.amount,t.currency)+'</strong></div>'+
+  '<div class="mobile-tx-name">'+esc(t.description)+'</div><div class="mobile-tx-tags">'+
+  '<span class="mobile-tx-tag">'+esc(t.category||"账户划转")+'</span><span class="mobile-tx-tag">'+esc(t.account||"未指定账户")+'</span><span class="mobile-tx-tag muted">'+esc(t.source||"手动")+'</span></div>'+
+  (t.note?'<div class="mobile-tx-note">'+esc(t.note)+'</div>':'')+
+  (adjust?'<div class="mobile-tx-audit">余额校对 · 不计入收支</div>':'<div class="mobile-tx-actions"><button class="btn small" onclick="openEntry(\''+tid+'\')">编辑</button><button class="btn small ghost" onclick="removeTransaction(\''+tid+'\')">删除</button></div>')+
+  '</article>'
+ }).join(""):'<div class="empty">没有符合筛选条件的交易</div>';
+}
 function openModal(title,html){$("modalTitle").textContent=title;$("modalBody").innerHTML=html;$("modalbg").style.display="flex"}
 function closeModal(){$("modalbg").style.display="none"}
 function opts(arr,selected){return arr.map(x=>'<option value="'+esc(x)+'" '+(x===selected?"selected":"")+'>'+esc(x)+'</option>').join("")}
