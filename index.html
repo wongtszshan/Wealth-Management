@@ -242,6 +242,16 @@ body{overflow-x:clip}
  #portfolio>.row .toolbar{flex-wrap:wrap;justify-content:flex-end}
  #portfolio>.row .toolbar .btn{padding:9px 11px;font-size:12px}
 }
+
+/* Unified small-screen safety for brokerage and investment modal fields */
+#investmentTradeForm,#brokerageForm{min-width:0;max-width:100%;width:100%}
+#investmentTradeForm>label,#brokerageForm>label{min-width:0;max-width:100%;overflow:hidden}
+#investmentTradeForm .field,#brokerageForm .field{display:block;width:100%;min-width:0;min-inline-size:0;max-width:100%;font-size:16px}
+#investmentTradeForm input[type="date"],#brokerageForm input[type="date"]{min-inline-size:0;max-inline-size:100%;-webkit-min-logical-width:0}
+@media(max-width:740px){
+ #investmentTradeForm,#brokerageForm{grid-template-columns:minmax(0,1fr)}
+ #investmentTradeForm .wide,#brokerageForm .wide{grid-column:1}
+}
 </style>
 </head>
 <body>
