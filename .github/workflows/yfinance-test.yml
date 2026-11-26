@@ -1,0 +1,47 @@
+name: Yahoo Finance connectivity test
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/yfinance-test.yml'
+permissions:
+  contents: read
+jobs:
+  quote-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install yfinance
+        run: python -m pip install yfinance
+      - name: Test public sample quotes
+        shell: bash
+        run: |
+          python - <<'PY'
+          import yfinance as yf
+          import math, json, sys
+          from datetime import datetime, timezone
+          from pathlib import Path
+          results = []
+          for symbol, expected in [('AAPL', 'USD'), ('D05.SI', 'SGD')]:
+              try:
+                  ticker = yf.Ticker(symbol)
+                  data = ticker.history(period='5d', interval='1d', auto_adjust=False, raise_errors=True)
+                  meta = ticker.history_metadata
+                  price = float(meta.get('regularMarketPrice') or 0)
+                  stamp = int(meta.get('regularMarketTime') or 0)
+                  currency = meta.get('currency')
+                  if data.empty or not math.isfinite(price) or price <= 0 or stamp <= 0 or currency != expected or meta.get('symbol') != symbol:
+                      raise ValueError('Invalid or missing quote metadata')
+                  results.append(dict(symbol=symbol, price=price, currency=currency, quotedAt=datetime.fromtimestamp(stamp, timezone.utc).isoformat()))
+              except Exception as e:
+                  results.append(dict(symbol=symbol,error=str(e)[:300]))
+          result = json.dumps(results, indent=2)
+          print(result)
+          import os
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+              f.write('## Public sample quote test\n\n```json\n'+result+'\n```\n')
+          sys.exit(1 if any('error' in r for r in results) else 0)
+          PY
